@@ -1,9 +1,35 @@
+Here is **Task Master v14**.
+
+I have integrated **Cloud Sync** using the free **JSONBin.io** service.
+
+### **How to use the new "Cloud Sync" feature:**
+
+1. **Get a Key:** Go to [jsonbin.io](https://jsonbin.io/login), sign up (free), and copy your **Master Key** (it starts with `$2...`).
+2. **On Device 1 (PC):**
+* Open Settings (⚙️).
+* Paste the **Master Key**.
+* Click **"Upload to Cloud"**.
+* The app will generate a **Bin ID** automatically. **Copy this Bin ID**.
+
+
+3. **On Device 2 (Phone):**
+* Open Settings (⚙️).
+* Paste the **Master Key** AND the **Bin ID** (from your PC).
+* Click **"Download from Cloud"**.
+
+
+
+Your tasks are now synced! Whenever you make changes, just click "Upload" on one device and "Download" on the other.
+
+### Save this as `dashboard.html`
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v13.1</title>
+    <title>Task Master v14 (Cloud Sync)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -50,7 +76,6 @@
             box-shadow: var(--shadow); border: 1px solid var(--border);
         }
         .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-        
         .header-actions { display: flex; gap: 10px; align-items: center; }
 
         .settings-btn {
@@ -158,22 +183,11 @@
         .del-icon { opacity: 0; transition: 0.2s; color: var(--danger); cursor: pointer; font-size: 1.1rem; padding: 6px; margin-right: -5px; }
         .task-card:hover .del-icon { opacity: 1; }
 
-        /* --- INPUT & CHIPS (FIXED) --- */
+        /* --- INPUT & CHIPS --- */
         .main-input-wrap { 
-            position: sticky; 
-            top: 0; 
-            z-index: 50; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 10px; 
-            
-            /* -- THE FIX IS HERE -- */
-            background-color: var(--bg-body); /* Solid background to mask scrolling content */
-            padding-top: 10px; /* Space above */
-            padding-bottom: 10px; /* Space below */
-            transition: background-color 0.3s;
+            position: sticky; top: 0; z-index: 50; display: flex; flex-direction: column; gap: 10px; 
+            background-color: var(--bg-body); padding-top: 10px; padding-bottom: 10px; transition: background-color 0.3s;
         }
-
         .search-bar {
             background: var(--bg-card); padding: 10px 10px 10px 20px; border-radius: 18px;
             display: flex; align-items: center; border: 1px solid var(--border);
@@ -184,22 +198,16 @@
             background: var(--accent); color: white; border: none; padding: 8px 20px;
             border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
         }
-        
         .chips-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px 0; scrollbar-width: none; align-items: center; }
         
         .chip {
             padding: 6px 12px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border);
             color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
         }
-        
         .chip.active { 
-            background: var(--text-primary); 
-            color: var(--bg-card); 
-            border-color: var(--text-primary); 
-            transform: translateY(-1px); 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            background: var(--text-primary); color: var(--bg-card); border-color: var(--text-primary); 
+            transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
         }
-
         .chip.p-high.active { background: var(--danger); border-color: var(--danger); color: #ffffff !important; }
         .chip.p-med.active { background: #f59e0b; border-color: #f59e0b; color: #ffffff !important; }
         .chip.p-low.active { background: var(--success); border-color: var(--success); color: #ffffff !important; }
@@ -239,6 +247,12 @@
         .data-btn:hover { background: var(--bg-card); border-color: var(--accent); }
         .data-icon { font-size: 1.2rem; }
 
+        /* Cloud Sync Section */
+        .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
+        .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
+        .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
+        .sync-input:focus { border-color: var(--accent); }
+        
         /* Cat List */
         .cat-list-ui { text-align: left; max-height: 250px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
         .cat-item-ui { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: 10px; align-items: center; border: 1px solid var(--border); }
@@ -327,29 +341,47 @@
 </div>
 
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal-card">
+    <div class="modal-card" style="max-height:85vh; overflow-y:auto;">
         <div class="modal-title">Settings & Data</div>
-        <div class="modal-subtitle">Backup or transfer your data</div>
+        <div class="modal-subtitle">Backup or Sync your data</div>
 
         <button class="data-btn" onclick="exportData()">
             <span class="data-icon">📥</span>
             <div>
-                <div style="font-size:0.95rem">Save Backup</div>
-                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download data to device</div>
+                <div style="font-size:0.95rem">Save Local Backup</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download .json file</div>
             </div>
         </button>
 
         <button class="data-btn" onclick="triggerImport()">
             <span class="data-icon">📤</span>
             <div>
-                <div style="font-size:0.95rem">Restore Backup</div>
+                <div style="font-size:0.95rem">Restore Local Backup</div>
                 <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div>
             </div>
         </button>
-        
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
 
-        <button class="btn-base btn-cancel" style="width:100%; margin-top:10px;" onclick="closeModal('settingsModal')">Close</button>
+        <div class="sync-section">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span>
+                <a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a>
+            </div>
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
+            <input type="password" class="sync-input" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()">
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
+            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
+
+            <div class="modal-btns">
+                <button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload()">Upload</button>
+                <button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload()">Download</button>
+            </div>
+            <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
+        </div>
+
+        <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close</button>
     </div>
 </div>
 
@@ -422,10 +454,16 @@
         if(saved) {
             try { state = JSON.parse(saved); } catch(e){ console.log('Resetting state'); }
         }
+        // Defaults
         if(!state.categories || state.categories.length === 0) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
         if(!state.activeFilter) state.activeFilter = 'All';
+
+        // Load Sync Config
+        const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
+        if(syncConfig.apiKey) document.getElementById('syncApiKey').value = syncConfig.apiKey;
+        if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
 
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
@@ -440,6 +478,71 @@
 
     function save() { localStorage.setItem('tm_v11_data', JSON.stringify(state)); }
 
+    /* --- CLOUD SYNC LOGIC (JSONBIN) --- */
+    function saveSyncConfig() {
+        const apiKey = document.getElementById('syncApiKey').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId }));
+    }
+
+    async function cloudUpload() {
+        const apiKey = document.getElementById('syncApiKey').value.trim();
+        let binId = document.getElementById('syncBinId').value.trim();
+        const status = document.getElementById('syncStatus');
+        
+        if(!apiKey) return status.innerText = "Error: API Key required.";
+        status.innerText = "Uploading...";
+
+        try {
+            // If No Bin ID, Create New (POST)
+            if(!binId) {
+                const req = await fetch('https://api.jsonbin.io/v3/b', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey },
+                    body: JSON.stringify(state)
+                });
+                const res = await req.json();
+                if(req.ok) {
+                    binId = res.metadata.id;
+                    document.getElementById('syncBinId').value = binId;
+                    saveSyncConfig();
+                    status.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId} (Copy this for other devices)</span>`;
+                } else throw new Error(res.message || "Upload Failed");
+            } else {
+                // Update Existing (PUT)
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey },
+                    body: JSON.stringify(state)
+                });
+                if(req.ok) status.innerHTML = '<span style="color:var(--success)">Synced Successfully!</span>';
+                else throw new Error("Update Failed");
+            }
+        } catch(e) { status.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; }
+    }
+
+    async function cloudDownload() {
+        const apiKey = document.getElementById('syncApiKey').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        const status = document.getElementById('syncStatus');
+
+        if(!apiKey || !binId) return status.innerText = "Error: Key & Bin ID required.";
+        status.innerText = "Downloading...";
+
+        try {
+            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+                headers: { 'X-Master-Key': apiKey }
+            });
+            const res = await req.json();
+            if(req.ok) {
+                state = res.record;
+                save();
+                renderAll();
+                status.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
+            } else throw new Error(res.message || "Download Failed");
+        } catch(e) { status.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; }
+    }
+
     /* --- DATA EXPORT / IMPORT --- */
     function exportData() {
         const dataStr = JSON.stringify(state, null, 2);
@@ -453,7 +556,6 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        closeModal('settingsModal');
     }
 
     function triggerImport() { document.getElementById('importFile').click(); }
@@ -562,7 +664,6 @@
     }
 
     function toggleTask(type, id) {
-        // Need to find in original array, not filtered one
         const originalSource = type==='daily'?state.todos:state.goals[type];
         const t = originalSource.find(x => x.id === id);
         if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); }
@@ -580,27 +681,19 @@
         });
     }
 
-    /* --- FILTERS (NEW) --- */
+    /* --- FILTERS --- */
     function renderFilters() {
         const container = document.getElementById('filterContainer');
         container.innerHTML = '';
         const filters = ['All', ...state.categories];
-        
         filters.forEach(f => {
-            container.innerHTML += `
-                <div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" 
-                     onclick="setFilter('${f}')">
-                     ${f}
-                </div>`;
+            container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`;
         });
     }
 
     function setFilter(filter) {
         state.activeFilter = filter;
-        // Auto-select category in input if not 'All'
-        if(filter !== 'All') {
-            currentInput.category = filter;
-        }
+        if(filter !== 'All') currentInput.category = filter;
         renderAll();
     }
 
@@ -684,16 +777,12 @@
             const d = new Date(); d.setDate(d.getDate() - i);
             const dateKey = d.toLocaleDateString('en-CA');
             let completedCount = 0;
-            
-            // FILTER GRAPH LOGIC
             const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-
             if (dateKey === todayKey) {
                 completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
             } else if (state.archives[dateKey]) {
                 completedCount = state.archives[dateKey].completed.filter(filterFn).length;
             }
-
             if(completedCount > maxVal) maxVal = completedCount;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
             dataPoints.push({ label: dayLabel, val: completedCount, key: dateKey, isToday: (i===0) });
@@ -715,8 +804,6 @@
         const list = document.getElementById('histContent'); list.innerHTML = '';
         let items = [];
         const todayKey = new Date().toLocaleDateString('en-CA');
-        
-        // FILTER HISTORY LOGIC
         const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
 
         if (dateKey === todayKey) {
@@ -788,3 +875,5 @@
 </script>
 </body>
 </html>
+
+```
