@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Todo App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .checkbox-custom {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        const state = {
+            darkMode: false,
+            todoText: '',
+            todos: [],
+            history: {},
+            showHistory: false,
+            lastClearDate: ''
+        };
+
+        function getTodayDate() {
+            return new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('todos');
+            const savedHistory = localStorage.getItem('todosHistory');
+            const savedDarkMode = localStorage.getItem('darkMode');
+            const savedLastClear = localStorage.getItem('lastClearDate');
+            
+            if (saved) state.todos = JSON.parse(saved);
+            if (savedHistory) state.history = JSON.parse(savedHistory);
+            if (savedDarkMode) state.darkMode = JSON.parse(savedDarkMode);
+            if (savedLastClear) state.lastClearDate = savedLastClear;
+            else state.lastClearDate = getTodayDate();
+            
+            checkNewDay();
+        }
+
+        function checkNewDay() {
+            const today = getTodayDate();
+            if (state.lastClearDate !== today) {
+                const completedTodos = state.todos.filter(t => t.completed);
+                
+                if (completedTodos.length > 0) {
+                    state.history[state.lastClearDate] = completedTodos.map(t => ({
+                        text: t.text,
+                        completedAt: t.completedAt
+                    }));
+                    localStorage.setItem('todosHistory', JSON.stringify(state.history));
+                }
+                
+                state.todos = [];
+                state.lastClearDate = today;
+                localStorage.setItem('lastClearDate', today);
+                localStorage.setItem('todos', JSON.stringify([]));
+            }
+        }
+
+        function addTodo() {
+            if (state.todoText.trim()) {
+                const newTodo = {
+                    id: Date.now().toString(),
+                    text: state.todoText,
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
+                state.todos.push(newTodo);
+                state.todoText = '';
+                localStorage.setItem('todos', JSON.stringify(state.todos));
+                render();
+            }
+        }
+
+        function toggleTodo(id) {
+            const todo = state.todos.find(t => t.id === id);
+            if (todo) {
+                todo.completed = !todo.completed;
+                todo.completedAt = todo.completed ? new Date().toISOString() : null;
+                localStorage.setItem('todos', JSON.stringify(state.todos));
+                render();
+            }
+        }
+
+        function removeTodo(id) {
+            state.todos = state.todos.filter(t => t.id !== id);
+            localStorage.setItem('todos', JSON.stringify(state.todos));
+            render();
+        }
+
+        function toggleDarkMode() {
+            state.darkMode = !state.darkMode;
+            localStorage.setItem('darkMode', JSON.stringify(state.darkMode));
+            render();
+        }
+
+        function toggleHistory() {
+            state.showHistory = !state.showHistory;
+            render();
+        }
+
+        function clearHistory(date) {
+            delete state.history[date];
+            localStorage.setItem('todosHistory', JSON.stringify(state.history));
+            render();
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-US', { 
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function isToday(date) {
+            return date === getTodayDate();
+        }
+
+        function render() {
+            const darkClass = state.darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900';
+            const sortedHistoryDates = Object.keys(state.history).sort((a, b) => new Date(b) - new Date(a));
+            const completedCount = state.todos.filter(t => !t.completed).length;
+
+            const app = document.getElementById('app');
+            app.className = `min-h-screen ${darkClass} transition-colors duration-200`;
+            
+            app.innerHTML = `
+                <div class="max-w-4xl mx-auto p-6">
+                    <!-- Header -->
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h1 class="text-4xl font-bold">Today's Todos</h1>
+                            <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-400' : 'text-gray-600'}">
+                                ${getTodayDate()}
+                            </p>
+                        </div>
+                        <button onclick="toggleDarkMode()" class="p-3 rounded-full ${state.darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} transition-colors shadow-lg">
+                            ${state.darkMode ? '☀️' : '🌙'}
+                        </button>
+                    </div>
+
+                    <!-- Input Section -->
+                    <div class="flex gap-3 mb-8">
+                        <input
+                            type="text"
+                            id="todoInput"
+                            value="${state.todoText}"
+                            placeholder="What needs to be done today?"
+                            class="flex-1 px-4 py-3 rounded-lg text-lg ${
+                                state.darkMode 
+                                    ? 'bg-gray-800 border-gray-700 placeholder-gray-500 text-white' 
+                                    : 'bg-white border-gray-200 placeholder-gray-400'
+                            } border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        />
+                        <button onclick="addTodo()" class="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition-colors shadow-md">
+                            Add
+                        </button>
+                    </div>
+
+                    <!-- Today's Todos -->
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-semibold">
+                                Tasks <span class="text-lg ${state.darkMode ? 'text-gray-400' : 'text-gray-500'}">
+                                    (${completedCount}/${state.todos.length})
+                                </span>
+                            </h2>
+                        </div>
+                        
+                        ${state.todos.length === 0 ? `
+                            <div class="text-center py-16 rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md">
+                                <p class="${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
+                                    No todos for today. Add one above to get started!
+                                </p>
+                            </div>
+                        ` : `
+                            <div class="rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md divide-y ${state.darkMode ? 'divide-gray-700' : 'divide-gray-200'}">
+                                ${state.todos.map(todo => `
+                                    <div class="flex items-center gap-4 p-4 transition-all">
+                                        <input
+                                            type="checkbox"
+                                            ${todo.completed ? 'checked' : ''}
+                                            onchange="toggleTodo('${todo.id}')"
+                                            class="checkbox-custom"
+                                        />
+                                        <div class="flex-1">
+                                            <p class="text-lg transition-all ${
+                                                todo.completed 
+                                                    ? `line-through ${state.darkMode ? 'text-gray-500' : 'text-gray-400'}` 
+                                                    : ''
+                                            }">
+                                                ${todo.text}
+                                            </p>
+                                            ${todo.completed && todo.completedAt ? `
+                                                <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-600' : 'text-gray-400'}">
+                                                    Completed at ${formatTime(todo.completedAt)}
+                                                </p>
+                                            ` : ''}
+                                        </div>
+                                        <button
+                                            onclick="removeTodo('${todo.id}')"
+                                            class="p-2 rounded-full transition-colors ${
+                                                state.darkMode 
+                                                    ? 'hover:bg-gray-700 text-gray-400 hover:text-red-400' 
+                                                    : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'
+                                            }"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- History Toggle -->
+                    <button
+                        onclick="toggleHistory()"
+                        class="w-full p-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 transition-all ${
+                            state.darkMode 
+                                ? 'bg-gray-800 hover:bg-gray-700' 
+                                : 'bg-white hover:bg-gray-100'
+                        } shadow-md"
+                    >
+                        📅 ${state.showHistory ? 'Hide' : 'View'} History
+                    </button>
+
+                    <!-- History Section -->
+                    ${state.showHistory ? `
+                        <div class="mt-6 space-y-4 fade-in">
+                            <h2 class="text-2xl font-semibold mb-4">Past Days</h2>
+                            ${sortedHistoryDates.length === 0 ? `
+                                <div class="text-center py-12 rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md">
+                                    <p class="${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
+                                        No history yet. Complete some todos!
+                                    </p>
+                                </div>
+                            ` : sortedHistoryDates.map(date => `
+                                <div class="rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md overflow-hidden">
+                                    <div class="flex items-center justify-between p-4 ${
+                                        isToday(date) 
+                                            ? 'bg-blue-500 text-white' 
+                                            : state.darkMode ? 'bg-gray-750' : 'bg-gray-50'
+                                    }">
+                                        <div>
+                                            <h3 class="text-lg font-semibold">
+                                                ${isToday(date) ? '🎯 ' : ''}${date}
+                                            </h3>
+                                            <p class="text-sm ${
+                                                isToday(date) 
+                                                    ? 'text-blue-100' 
+                                                    : state.darkMode ? 'text-gray-400' : 'text-gray-500'
+                                            }">
+                                                ${state.history[date].length} ${state.history[date].length === 1 ? 'task' : 'tasks'} completed
+                                            </p>
+                                        </div>
+                                        <button
+                                            onclick="clearHistory('${date}')"
+                                            class="p-2 rounded-full transition-colors ${
+                                                isToday(date)
+                                                    ? 'hover:bg-blue-600 text-white'
+                                                    : state.darkMode 
+                                                        ? 'hover:bg-gray-700 text-gray-400' 
+                                                        : 'hover:bg-gray-200 text-gray-500'
+                                            }"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                    <div class="divide-y ${state.darkMode ? 'divide-gray-700' : 'divide-gray-200'}">
+                                        ${state.history[date].map((todo, idx) => `
+                                            <div class="p-4 flex items-start gap-3">
+                                                <span class="text-green-500 text-xl">✓</span>
+                                                <div class="flex-1">
+                                                    <p class="text-base">${todo.text}</p>
+                                                    ${todo.completedAt ? `
+                                                        <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
+                                                            ${formatTime(todo.completedAt)}
+                                                        </p>
+                                                    ` : ''}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Attach event listener to input
+            const input = document.getElementById('todoInput');
+            if (input) {
+                input.addEventListener('input', (e) => {
+                    state.todoText = e.target.value;
+                });
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') addTodo();
+                });
+            }
+        }
+
+        // Initialize
+        loadData();
+        render();
+
+        // Check for new day every minute
+        setInterval(() => {
+            checkNewDay();
+            render();
+        }, 60000);
+    </script>
+</body>
+</html>
