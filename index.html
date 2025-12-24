@@ -3,529 +3,685 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master Pro</title>
+    <title>Task Master v12</title>
     <style>
         :root {
-            /* Light Theme */
-            --bg-body: #f3f4f6;
+            --bg-body: #f1f5f9;
             --bg-card: #ffffff;
-            --text-primary: #1f2937;
-            --text-secondary: #6b7280;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
             --danger: #ef4444;
             --success: #10b981;
-            --border: #e5e7eb;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --graph-bar: #e5e7eb;
-            --graph-active: #3b82f6;
+            --warning: #f59e0b;
+            --border: #e2e8f0;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
 
         [data-theme="dark"] {
-            /* Dark Theme */
             --bg-body: #0f172a;
             --bg-card: #1e293b;
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
-            --accent: #60a5fa;
-            --accent-hover: #3b82f6;
-            --danger: #f87171;
-            --success: #34d399;
+            --accent: #818cf8;
+            --accent-glow: rgba(129, 140, 248, 0.3);
             --border: #334155;
-            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-            --graph-bar: #334155;
-            --graph-active: #60a5fa;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
         
         body {
             background-color: var(--bg-body);
             color: var(--text-primary);
-            transition: background-color 0.4s ease, color 0.4s ease;
+            transition: background-color 0.3s, color 0.3s;
             min-height: 100vh;
             padding: 20px 10px;
-            display: flex;
-            justify-content: center;
+            padding-bottom: 100px;
+            overflow-x: hidden;
         }
 
-        /* Layout & Container */
-        .app-container {
-            width: 100%;
-            max-width: 700px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 
-        /* Card Styling */
-        .card {
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-            transition: transform 0.2s, background-color 0.4s;
+        /* --- HEADER --- */
+        .header-card {
+            background: var(--bg-card); border-radius: 24px; padding: 24px;
+            box-shadow: var(--shadow); border: 1px solid var(--border);
         }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
-        .date-badge { font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; font-weight: 500; }
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
         
-        .theme-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            transition: transform 0.3s;
-            background: var(--bg-body);
-        }
-        .theme-btn:active { transform: scale(0.9) rotate(15deg); }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
 
-        /* Graph Section */
-        .stats-container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        .settings-btn {
+            background: var(--bg-body); border: 1px solid var(--border);
+            width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: var(--text-secondary); transition: 0.2s;
         }
-        .stats-header { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
-        .graph-area {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            height: 100px;
-            padding-top: 10px;
-            gap: 6px;
+        .settings-btn:hover { background: var(--text-primary); color: var(--bg-card); transform: rotate(90deg); }
+
+        .graph-toggle {
+            background: var(--bg-body); padding: 4px; border-radius: 12px; display: flex; gap: 4px; border: 1px solid var(--border);
         }
-        .bar-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            height: 100%;
-            justify-content: flex-end;
+        .toggle-btn {
+            padding: 6px 14px; border-radius: 8px; border: none; background: transparent;
+            color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
         }
+        .toggle-btn.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* --- GRAPH --- */
+        .chart-wrapper {
+            position: relative; height: 180px; width: 100%;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: flex-end;
+        }
+        .chart-grid {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .grid-line { width: 100%; height: 1px; background: var(--border); opacity: 0.4; }
+        .bars-container {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            width: 100%; height: 100%; padding-top: 20px; z-index: 2; gap: 8px;
+        }
+        .bars-container.month-view {
+            overflow-x: auto; justify-content: flex-start; gap: 10px; padding-bottom: 5px;
+            scrollbar-width: thin; scrollbar-color: var(--accent) transparent;
+        }
+        .bar-group {
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            height: 100%; flex: 1; position: relative; min-width: 30px; cursor: pointer;
+        }
+        .month-view .bar-group { flex: 0 0 auto; width: 28px; }
         .bar {
-            width: 100%;
-            border-radius: 6px;
-            background: var(--graph-bar);
-            transition: height 1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s;
-            min-height: 4px;
-            position: relative;
+            width: 12px; border-radius: 6px; background: var(--border);
+            transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            min-height: 6px; position: relative; opacity: 0.5;
         }
-        .bar:hover::after {
-            content: attr(data-count);
-            position: absolute;
-            top: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--text-primary);
-            color: var(--bg-card);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: bold;
-        }
-        .bar.active { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-        .day-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: bold; }
+        .bar.has-data { background: var(--accent); opacity: 1; box-shadow: 0 0 12px var(--accent-glow); }
+        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
-        /* Input Area */
-        .input-group {
-            display: flex;
-            gap: 10px;
-            position: sticky;
-            top: 10px;
-            z-index: 10;
+        /* --- SECTIONS --- */
+        .section-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .add-icon-btn {
+            width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: white;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); transition: 0.2s;
         }
-        .input-group input {
-            flex: 1;
-            padding: 16px;
-            border-radius: 12px;
-            border: 2px solid var(--border);
-            background: var(--bg-card);
-            color: var(--text-primary);
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.3s, box-shadow 0.3s;
-            box-shadow: var(--shadow);
+        .goals-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .goal-column {
+            background: var(--bg-card); border-radius: 20px; padding: 20px;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
         }
-        .input-group input:focus { border-color: var(--accent); }
-        .add-btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 0 24px;
-            border-radius: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.2s, background-color 0.3s;
-            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
-        }
-        .add-btn:active { transform: scale(0.95); }
 
-        /* Todo List */
-        .todo-list { display: flex; flex-direction: column; gap: 12px; }
-        .todo-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px;
-            background: var(--bg-card);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            animation: slideIn 0.3s ease-out forwards;
-            position: relative;
-            overflow: hidden;
+        /* --- TASKS --- */
+        .task-list { display: flex; flex-direction: column; gap: 10px; }
+        .task-card {
+            background: var(--bg-card); padding: 14px; border-radius: 14px; border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px;
+            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.3s; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .goal-column .task-card { background: var(--bg-body); border: 1px solid rgba(0,0,0,0.05); }
+        .task-card.deleting { transform: translateX(100%); opacity: 0; }
         
-        .checkbox {
-            width: 24px;
-            height: 24px;
-            border-radius: 6px;
-            border: 2px solid var(--text-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-shrink: 0;
+        .task-check {
+            width: 24px; height: 24px; border: 2px solid var(--text-secondary); border-radius: 8px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s;
         }
-        .checkbox.checked {
-            background: var(--success);
-            border-color: var(--success);
+        .task-check.checked { background: var(--success); border-color: var(--success); transform: scale(1.1); }
+        .task-check.checked::after { content: '✓'; color: white; font-weight: 900; font-size: 14px; }
+        
+        .task-body { flex: 1; min-width: 0; }
+        .task-txt { font-size: 1rem; color: var(--text-primary); font-weight: 500; margin-bottom: 4px; transition: 0.3s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .task-txt.done { text-decoration: line-through; color: var(--text-secondary); opacity: 0.7; }
+        
+        .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; align-items: center; }
+        .meta-tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-body); color: var(--text-secondary); border: 1px solid var(--border); }
+        .p-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+        .del-icon { opacity: 0; transition: 0.2s; color: var(--danger); cursor: pointer; font-size: 1.1rem; padding: 6px; margin-right: -5px; }
+        .task-card:hover .del-icon { opacity: 1; }
+
+        /* --- INPUT --- */
+        .main-input-wrap { position: sticky; top: 10px; z-index: 50; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .search-bar {
+            background: var(--bg-card); padding: 10px 10px 10px 20px; border-radius: 18px;
+            display: flex; align-items: center; border: 1px solid var(--border);
+            box-shadow: 0 8px 20px -5px rgba(0,0,0,0.1); backdrop-filter: blur(10px);
         }
-        .checkbox.checked::after {
-            content: '✓';
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
+        .main-input { flex: 1; border: none; background: transparent; font-size: 1rem; outline: none; color: var(--text-primary); }
+        .big-add-btn {
+            background: var(--accent); color: white; border: none; padding: 8px 20px;
+            border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+        }
+        .chips-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px 0; scrollbar-width: none; align-items: center; }
+        .chip {
+            padding: 6px 12px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
+        }
+        .chip.active { background: var(--text-primary); color: white; border-color: var(--text-primary); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .chip.p-high.active { background: var(--danger); border-color: var(--danger); }
+        .chip.p-med.active { background: #f59e0b; border-color: #f59e0b; }
+        .chip.p-low.active { background: var(--success); border-color: var(--success); }
+        .manage-btn {
+            width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); display: flex; align-items: center; justify-content: center;
+            cursor: pointer; flex-shrink: 0; transition: 0.2s; font-size: 0.8rem;
         }
 
-        .todo-content { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        .todo-text { font-size: 1rem; transition: color 0.3s; }
-        .todo-text.done { text-decoration: line-through; color: var(--text-secondary); }
-        .todo-meta { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-
-        .delete-btn {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
-            border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+            z-index: 2000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
         }
-        .delete-btn:hover { background: var(--danger); color: white; }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-card {
+            background: var(--bg-card); padding: 25px; border-radius: 24px; width: 90%; max-width: 360px;
+            text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9); 
+            transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid var(--border);
+        }
+        .modal-overlay.active .modal-card { transform: scale(1); }
+        .modal-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; color: var(--text-primary); }
+        .modal-subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; }
+        .modal-input {
+            width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+            background: var(--bg-body); color: var(--text-primary); font-size: 1rem; outline: none; margin-bottom: 15px;
+        }
+        .modal-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-base { flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: 0.2s; }
+        .btn-cancel { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-confirm { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        
+        /* Data/Settings Buttons */
+        .data-btn { display: flex; align-items: center; gap: 10px; padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: var(--bg-body); color: var(--text-primary); font-weight: 600; width: 100%; text-align: left; }
+        .data-btn:hover { background: var(--bg-card); border-color: var(--accent); }
+        .data-icon { font-size: 1.2rem; }
 
+        /* Cat List */
+        .cat-list-ui { text-align: left; max-height: 250px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .cat-item-ui { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: 10px; align-items: center; border: 1px solid var(--border); }
+        .cat-actions { display: flex; gap: 8px; }
+        .cat-icon-btn { cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.6; }
+        
         /* History */
-        .history-btn {
-            width: 100%;
-            padding: 15px;
-            margin-top: 10px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        .history-btn:hover { background: var(--bg-body); }
+        .history-list { text-align: left; max-height: 300px; overflow-y: auto; margin: 10px 0; padding-right: 5px; }
+        .hist-item { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+        .hist-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         
-        .history-section {
-            margin-top: 20px;
-            display: none;
-            animation: fadeIn 0.4s;
-        }
-        .history-section.show { display: block; }
-        .history-group { margin-bottom: 20px; }
-        .history-header {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--accent);
-            margin-bottom: 8px;
-            font-weight: 700;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        /* Empty State */
-        .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
-        .empty-icon { font-size: 3rem; margin-bottom: 10px; display: block; opacity: 0.5; }
-
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .confetti { position: fixed; width: 8px; height: 8px; top: -10px; z-index: 3000; pointer-events: none; border-radius: 50%; }
+        .theme-fab { position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; z-index: 100; transition: 0.3s; }
+        .theme-fab:hover { transform: rotate(20deg) scale(1.1); }
     </style>
 </head>
 <body>
 
-    <div class="app-container">
+<div class="container">
+
+    <div class="header-card">
+        <div class="header-top">
+            <div>
+                <h2 style="margin:0;">Dashboard</h2>
+                <div style="font-size:0.9rem; color:var(--text-secondary); font-weight:600;" id="dateDisplay">...</div>
+            </div>
+            <div class="header-actions">
+                <div class="graph-toggle">
+                    <button class="toggle-btn active" id="btn-week" onclick="setGraph('week')">Week</button>
+                    <button class="toggle-btn" id="btn-month" onclick="setGraph('month')">Month</button>
+                </div>
+                <button class="settings-btn" onclick="openModal('settingsModal')">⚙️</button>
+            </div>
+        </div>
         
-        <div class="card">
-            <div class="header">
-                <div>
-                    <h1>Task Master</h1>
-                    <div class="date-badge" id="currentDate">Loading...</div>
-                </div>
-                <button class="theme-btn" onclick="toggleTheme()" id="themeIcon">🌙</button>
-            </div>
-
-            <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
-
-            <div class="stats-container">
-                <div class="stats-header">
-                    <span>Weekly Productivity</span>
-                    <span id="completedCount">0 completed today</span>
-                </div>
-                <div class="graph-area" id="graph">
-                    </div>
-            </div>
+        <div class="chart-wrapper">
+            <div class="chart-grid"><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div></div>
+            <div class="bars-container" id="chartBars"></div>
         </div>
-
-        <div class="input-group">
-            <input type="text" id="todoInput" placeholder="Add a new task..." autocomplete="off">
-            <button class="add-btn" onclick="addTodo()">+</button>
-        </div>
-
-        <div class="todo-list" id="todoList">
-            </div>
-
-        <button class="history-btn" onclick="toggleHistory()">📜 View History</button>
-        <div class="history-section" id="historySection">
-            </div>
-
     </div>
 
-    <script>
-        // --- STATE MANAGEMENT ---
-        const state = {
-            todos: [],
-            history: {},
-            theme: 'light',
-            lastClearDate: ''
-        };
+    <div class="main-input-wrap">
+        <div class="search-bar">
+            <input type="text" class="main-input" id="taskInput" placeholder="Add a new task..." autocomplete="off">
+            <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
+        </div>
+        <div class="chips-row">
+            <div class="chip p-low active" onclick="setPriority(this, 'low')">Low</div>
+            <div class="chip p-med" onclick="setPriority(this, 'med')">Medium</div>
+            <div class="chip p-high" onclick="setPriority(this, 'high')">High</div>
+        </div>
+        <div class="chips-row">
+            <button class="manage-btn" onclick="openCatManager()">⚙️</button>
+            <div id="catContainer" style="display:flex; gap:8px;"></div>
+        </div>
+    </div>
 
-        // --- INIT ---
-        function init() {
-            // Load from LocalStorage
-            try {
-                const sTodos = localStorage.getItem('tm_todos');
-                const sHistory = localStorage.getItem('tm_history');
-                const sTheme = localStorage.getItem('tm_theme');
-                const sDate = localStorage.getItem('tm_date');
+    <div>
+        <div class="section-title">Today's Missions <span style="font-size:0.8em; opacity:0.5; font-weight:400" id="todayCount">0 tasks</span></div>
+        <div class="task-list" id="taskListDaily"></div>
+    </div>
 
-                if (sTodos) state.todos = JSON.parse(sTodos);
-                if (sHistory) state.history = JSON.parse(sHistory);
-                if (sTheme) state.theme = sTheme;
-                if (sDate) state.lastClearDate = sDate;
-                else state.lastClearDate = getTodayStr();
+    <div class="goals-wrapper">
+        <div class="goal-column">
+            <div class="section-title">
+                <span style="color:var(--accent)">Weekly Targets</span>
+                <div class="add-icon-btn" onclick="openAddGoalModal('weekly')">＋</div>
+            </div>
+            <div class="task-list" id="taskListWeekly"></div>
+        </div>
+        <div class="goal-column">
+            <div class="section-title">
+                <span style="color:#ec4899">Monthly Missions</span>
+                <div class="add-icon-btn" onclick="openAddGoalModal('monthly')">＋</div>
+            </div>
+            <div class="task-list" id="taskListMonthly"></div>
+        </div>
+    </div>
 
-            } catch (e) { console.error("Load error", e); }
+</div>
 
-            // Set Theme
-            document.documentElement.setAttribute('data-theme', state.theme);
-            document.getElementById('themeIcon').textContent = state.theme === 'dark' ? '☀️' : '🌙';
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-card">
+        <div class="modal-title">Settings & Data</div>
+        <div class="modal-subtitle">Backup or transfer your data</div>
 
-            // Check Day Transition
-            checkNewDay();
-            
-            // Initial Render
-            render();
-            
-            // Input Listener
-            document.getElementById('todoInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') addTodo();
-            });
-        }
+        <button class="data-btn" onclick="exportData()">
+            <span class="data-icon">📥</span>
+            <div>
+                <div style="font-size:0.95rem">Save Backup</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download data to device</div>
+            </div>
+        </button>
 
-        // --- LOGIC ---
-        function getTodayStr() {
-            return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-        }
-
-        function getShortDay(dateObj) {
-            return dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-        }
-
-        function checkNewDay() {
-            const today = getTodayStr();
-            if (state.lastClearDate !== today) {
-                // Archive completed tasks
-                const completed = state.todos.filter(t => t.completed);
-                if (completed.length > 0) {
-                    state.history[state.lastClearDate] = completed;
-                }
-                
-                // Keep only incomplete tasks
-                state.todos = state.todos.filter(t => !t.completed);
-                state.lastClearDate = today;
-                save();
-            }
-        }
-
-        function save() {
-            localStorage.setItem('tm_todos', JSON.stringify(state.todos));
-            localStorage.setItem('tm_history', JSON.stringify(state.history));
-            localStorage.setItem('tm_theme', state.theme);
-            localStorage.setItem('tm_date', state.lastClearDate);
-            render();
-        }
-
-        function toggleTheme() {
-            state.theme = state.theme === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', state.theme);
-            document.getElementById('themeIcon').textContent = state.theme === 'dark' ? '☀️' : '🌙';
-            save();
-        }
-
-        function addTodo() {
-            const input = document.getElementById('todoInput');
-            const text = input.value.trim();
-            if (!text) return;
-
-            state.todos.unshift({
-                id: Date.now(),
-                text: text,
-                completed: false,
-                createdAt: new Date().toISOString()
-            });
-            input.value = '';
-            input.focus(); // Keep focus for desktop users
-            save();
-        }
-
-        function toggleTodo(id) {
-            const todo = state.todos.find(t => t.id === id);
-            if (todo) {
-                todo.completed = !todo.completed;
-                todo.completedAt = todo.completed ? new Date().toISOString() : null;
-                save();
-            }
-        }
-
-        function deleteTodo(id) {
-            if(confirm('Delete this task?')) {
-                state.todos = state.todos.filter(t => t.id !== id);
-                save();
-            }
-        }
-
-        function toggleHistory() {
-            document.getElementById('historySection').classList.toggle('show');
-        }
-
-        // --- GRAPH LOGIC ---
-        function generateGraphData() {
-            const data = [];
-            const today = new Date();
-            
-            // Get last 7 days
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(today);
-                d.setDate(today.getDate() - i);
-                const dateStr = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-                
-                let count = 0;
-                if (i === 0) {
-                    // Today: Count current completed tasks
-                    count = state.todos.filter(t => t.completed).length;
-                } else {
-                    // History: Count archived tasks
-                    if (state.history[dateStr]) {
-                        count = state.history[dateStr].length;
-                    }
-                }
-                data.push({ day: getShortDay(d), count: count, isToday: i === 0 });
-            }
-            return data;
-        }
-
-        // --- RENDERING ---
-        function render() {
-            // 1. Header
-            document.getElementById('currentDate').textContent = getTodayStr();
-            const todayCompleted = state.todos.filter(t => t.completed).length;
-            document.getElementById('completedCount').textContent = `${todayCompleted} completed today`;
-
-            // 2. Graph
-            const graphData = generateGraphData();
-            const maxVal = Math.max(...graphData.map(d => d.count), 5); // Minimum scale of 5
-            const graphEl = document.getElementById('graph');
-            graphEl.innerHTML = graphData.map(d => {
-                const height = (d.count / maxVal) * 100;
-                return `
-                    <div class="bar-wrapper">
-                        <div class="bar ${d.isToday ? 'active' : ''}" 
-                             style="height: ${height}%" 
-                             data-count="${d.count}"></div>
-                        <div class="day-label">${d.day}</div>
-                    </div>
-                `;
-            }).join('');
-
-            // 3. Active List
-            const listEl = document.getElementById('todoList');
-            if (state.todos.length === 0) {
-                listEl.innerHTML = `<div class="empty-state"><span class="empty-icon">📝</span><p>No tasks yet. Start by adding one!</p></div>`;
-            } else {
-                listEl.innerHTML = state.todos.map(t => `
-                    <div class="todo-item">
-                        <div class="checkbox ${t.completed ? 'checked' : ''}" onclick="toggleTodo(${t.id})"></div>
-                        <div class="todo-content">
-                            <div class="todo-text ${t.completed ? 'done' : ''}">${t.text}</div>
-                        </div>
-                        <button class="delete-btn" onclick="deleteTodo(${t.id})">🗑</button>
-                    </div>
-                `).join('');
-            }
-
-            // 4. History
-            const histEl = document.getElementById('historySection');
-            const dates = Object.keys(state.history).sort((a, b) => new Date(b) - new Date(a));
-            
-            if (dates.length === 0) {
-                histEl.innerHTML = `<div class="empty-state"><p>No history yet.</p></div>`;
-            } else {
-                histEl.innerHTML = dates.map(date => `
-                    <div class="card history-group">
-                        <div class="history-header">
-                            <span>${date}</span>
-                            <span>${state.history[date].length} Done</span>
-                        </div>
-                        ${state.history[date].map(t => `
-                            <div style="display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:0.9rem; color:var(--text-secondary);">
-                                <span style="color:var(--success)">✓</span>
-                                <span style="text-decoration:line-through">${t.text}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `).join('');
-            }
-        }
-
-        // Start
-        init();
+        <button class="data-btn" onclick="triggerImport()">
+            <span class="data-icon">📤</span>
+            <div>
+                <div style="font-size:0.95rem">Restore Backup</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div>
+            </div>
+        </button>
         
-        // Auto-refresh date every minute
-        setInterval(checkNewDay, 60000);
+        <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
 
-    </script>
+        <button class="btn-base btn-cancel" style="width:100%; margin-top:10px;" onclick="closeModal('settingsModal')">Close</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="addGoalModal">
+    <div class="modal-card">
+        <div class="modal-title" id="goalModalTitle">Add Goal</div>
+        <input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?">
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <select class="modal-input" id="goalInputPriority" style="margin:0"><option value="low">Low</option><option value="med">Med</option><option value="high">High</option></select>
+            <select class="modal-input" id="goalInputCat" style="margin:0"></select>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button>
+            <button class="btn-base btn-confirm" id="btnSaveGoal">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="catManagerModal">
+    <div class="modal-card">
+        <div class="modal-title">Categories</div>
+        <div class="cat-list-ui" id="catManagerList"></div>
+        <button class="btn-base btn-confirm" style="width:100%; margin-bottom:10px;" onclick="promptAddCategory()">+ New Category</button>
+        <button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('catManagerModal')">Done</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="catInputModal">
+    <div class="modal-card">
+        <div class="modal-title" id="catInputTitle">New Category</div>
+        <input type="text" class="modal-input" id="catInputField" placeholder="Name...">
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('catInputModal')">Cancel</button>
+            <button class="btn-base btn-confirm" id="catInputConfirm">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="historyModal">
+    <div class="modal-card">
+        <div class="modal-title" id="histDateTitle">Date</div>
+        <div id="histContent" class="history-list"></div>
+        <button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('historyModal')">Close</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal-card">
+        <div class="modal-title">Are you sure?</div>
+        <div class="modal-subtitle" id="confirmText">This cannot be undone.</div>
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('confirmModal')">Cancel</button>
+            <button class="btn-base btn-danger" id="confirmActionBtn">Yes, Delete</button>
+        </div>
+    </div>
+</div>
+
+<button class="theme-fab" onclick="toggleTheme()">🌓</button>
+
+<script>
+    let state = {
+        todos: [], goals: { weekly: [], monthly: [] }, archives: {},
+        categories: ['Personal', 'Work', 'Health'], theme: 'light',
+        graphMode: 'week', lastLoginDate: null 
+    };
+    let currentInput = { priority: 'low', category: 'Personal' };
+
+    function init() {
+        const saved = localStorage.getItem('tm_v11_data');
+        if(saved) {
+            try { state = JSON.parse(saved); } catch(e){ console.log('Resetting state'); }
+        }
+        if(!state.categories || state.categories.length === 0) state.categories = ['Personal'];
+        if(!state.goals) state.goals = { weekly: [], monthly: [] };
+        if(!state.archives) state.archives = {};
+
+        document.documentElement.setAttribute('data-theme', state.theme);
+        document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+        checkDayRollover();
+        renderAll();
+        
+        // Listeners
+        document.getElementById('taskInput').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
+        document.getElementById('catInputField').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('catInputConfirm').click(); });
+        document.getElementById('goalInputName').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('btnSaveGoal').click(); });
+    }
+
+    function save() { localStorage.setItem('tm_v11_data', JSON.stringify(state)); }
+
+    /* --- DATA EXPORT / IMPORT --- */
+    function exportData() {
+        const dataStr = JSON.stringify(state, null, 2);
+        const blob = new Blob([dataStr], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const date = new Date().toISOString().split('T')[0];
+        a.href = url;
+        a.download = `taskmaster_backup_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        closeModal('settingsModal');
+    }
+
+    function triggerImport() { document.getElementById('importFile').click(); }
+
+    function handleFileLoad(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if(!data.todos || !data.categories) throw new Error("Invalid file structure");
+                if(confirm("This will replace your current data. Continue?")) {
+                    state = data;
+                    save();
+                    location.reload();
+                }
+            } catch(err) { alert("Error importing: " + err.message); }
+        };
+        reader.readAsText(file);
+        input.value = ''; // Reset
+    }
+
+    /* --- CORE LOGIC --- */
+    function checkDayRollover() {
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
+            const yesterdayTasks = state.todos;
+            const completed = yesterdayTasks.filter(t => t.completed);
+            const missed = yesterdayTasks.filter(t => !t.completed);
+            if (completed.length > 0 || missed.length > 0) {
+                state.archives[state.lastLoginDate] = { completed, missed };
+            }
+            state.todos = []; 
+        }
+        state.lastLoginDate = todayKey;
+        save();
+    }
+
+    function renderAll() {
+        renderGraph(); renderCategories();
+        renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly');
+        document.getElementById('todayCount').innerText = `${state.todos.length} tasks`;
+    }
+
+    function createTaskObj(text, priority, category) {
+        return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString() };
+    }
+
+    function addTask(type) {
+        let text, priority, category;
+        if (type === 'daily') {
+            const input = document.getElementById('taskInput');
+            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category;
+            if(!text) return;
+            state.todos.unshift(createTaskObj(text, priority, category));
+            input.value = '';
+        } else {
+            const input = document.getElementById('goalInputName');
+            text = input.value.trim(); priority = document.getElementById('goalInputPriority').value; category = document.getElementById('goalInputCat').value;
+            if(!text) return;
+            state.goals[type].push(createTaskObj(text, priority, category));
+            closeModal('addGoalModal');
+        }
+        save(); renderTasks(type); if(type==='daily') renderGraph();
+    }
+
+    function renderTasks(type) {
+        const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly');
+        const container = document.getElementById(listId);
+        container.innerHTML = '';
+        const source = type==='daily'?state.todos:state.goals[type];
+        if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No tasks yet</div>`; return; }
+        
+        source.forEach(t => {
+            const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
+            container.innerHTML += `
+                <div class="task-card" id="task-${t.id}">
+                    <div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div>
+                    <div class="task-body">
+                        <div class="task-txt ${t.completed?'done':''}">${t.text}</div>
+                        <div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span></div>
+                    </div>
+                    <div class="del-icon" onclick="promptDelete('${type}', ${t.id})">🗑</div>
+                </div>
+            `;
+        });
+    }
+
+    function toggleTask(type, id) {
+        const source = type==='daily'?state.todos:state.goals[type];
+        const t = source.find(x => x.id === id);
+        if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderTasks(type); if(type==='daily') renderGraph(); }
+    }
+
+    function promptDelete(type, id) {
+        showConfirm("Delete this item?", () => {
+            const el = document.getElementById(`task-${id}`);
+            if(el) el.classList.add('deleting');
+            setTimeout(() => {
+                if(type === 'daily') state.todos = state.todos.filter(x => x.id !== id);
+                else state.goals[type] = state.goals[type].filter(x => x.id !== id);
+                save(); renderTasks(type); if(type==='daily') renderGraph();
+            }, 300);
+        });
+    }
+
+    /* --- CATEGORIES --- */
+    function renderCategories() {
+        const container = document.getElementById('catContainer'); container.innerHTML = '';
+        state.categories.forEach(cat => { container.innerHTML += `<div class="chip ${currentInput.category===cat?'active':''}" onclick="setCategory(this, '${cat}')">${cat}</div>`; });
+        const select = document.getElementById('goalInputCat'); select.innerHTML = '';
+        state.categories.forEach(cat => { select.innerHTML += `<option value="${cat}">${cat}</option>`; });
+    }
+
+    function openCatManager() {
+        const list = document.getElementById('catManagerList'); list.innerHTML = '';
+        state.categories.forEach((cat, idx) => {
+            list.innerHTML += `
+                <div class="cat-item-ui">
+                    <span style="font-weight:600; color:var(--text-primary)">${cat}</span>
+                    <div class="cat-actions">
+                        <div class="cat-icon-btn" onclick="promptRenameCategory(${idx})" style="color:var(--accent)">✎</div>
+                        <div class="cat-icon-btn" onclick="promptDeleteCategory(${idx})" style="color:var(--danger)">🗑</div>
+                    </div>
+                </div>
+            `;
+        });
+        openModal('catManagerModal');
+    }
+
+    function promptAddCategory() {
+        closeModal('catManagerModal');
+        showInputModal("New Category", "Name...", (val) => {
+            if(state.categories.includes(val)) return alert('Exists!');
+            state.categories.push(val); save(); renderCategories(); openCatManager();
+        });
+    }
+    
+    function promptRenameCategory(idx) {
+        const oldName = state.categories[idx];
+        closeModal('catManagerModal');
+        showInputModal("Rename Category", oldName, (newName) => {
+            state.categories[idx] = newName;
+            const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; });
+            updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly);
+            if(currentInput.category === oldName) currentInput.category = newName;
+            save(); renderAll(); openCatManager();
+        });
+    }
+
+    function promptDeleteCategory(idx) {
+        if(state.categories.length <= 1) return alert("Keep at least one category.");
+        closeModal('catManagerModal');
+        showConfirm(`Delete "${state.categories[idx]}"?`, () => {
+            const catName = state.categories[idx];
+            state.categories.splice(idx, 1);
+            const fallback = state.categories[0];
+            const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; });
+            fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly);
+            if(currentInput.category === catName) currentInput.category = fallback;
+            save(); renderAll(); openCatManager();
+        });
+    }
+
+    /* --- GRAPH & HISTORY --- */
+    function setGraph(mode) {
+        state.graphMode = mode;
+        document.getElementById('btn-week').classList.toggle('active', mode==='week');
+        document.getElementById('btn-month').classList.toggle('active', mode==='month');
+        document.getElementById('chartBars').classList.toggle('month-view', mode==='month');
+        renderGraph();
+    }
+
+    function renderGraph() {
+        const container = document.getElementById('chartBars'); container.innerHTML = '';
+        const limit = state.graphMode === 'week' ? 7 : 30;
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        let maxVal = 5;
+        let dataPoints = [];
+        
+        for(let i=limit-1; i>=0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const dateKey = d.toLocaleDateString('en-CA');
+            let completedCount = 0;
+            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed).length;
+            else if (state.archives[dateKey]) completedCount = state.archives[dateKey].completed.length;
+            if(completedCount > maxVal) maxVal = completedCount;
+            const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
+            dataPoints.push({ label: dayLabel, val: completedCount, key: dateKey, isToday: (i===0) });
+        }
+
+        dataPoints.forEach(d => {
+            const h = (d.val / maxVal) * 100;
+            const barClass = d.val > 0 ? 'bar has-data' : 'bar';
+            container.innerHTML += `
+                <div class="bar-group" onclick="openHistoryDetail('${d.key}')">
+                    <div class="${barClass}" style="height:${Math.max(h, 6)}%"></div>
+                    <div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div>
+                </div>`;
+        });
+    }
+
+    function openHistoryDetail(dateKey) {
+        document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString();
+        const list = document.getElementById('histContent'); list.innerHTML = '';
+        let items = [];
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        
+        if (dateKey === todayKey) {
+            state.todos.forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
+        } else if (state.archives[dateKey]) {
+            state.archives[dateKey].completed.forEach(t => items.push({ text: t.text, done: true, cat: t.category }));
+            state.archives[dateKey].missed.forEach(t => items.push({ text: t.text, done: false, cat: t.category }));
+        }
+        
+        if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records.</div>';
+        else items.forEach(item => {
+            list.innerHTML += `
+                <div class="hist-item">
+                    <div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div>
+                    <div style="flex:1">
+                        <div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div>
+                        <div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div>
+                    </div>
+                </div>`;
+        });
+        openModal('historyModal');
+    }
+
+    /* --- MODALS --- */
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    
+    function showInputModal(title, placeholder, callback) {
+        document.getElementById('catInputTitle').innerText = title;
+        const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder;
+        const btn = document.getElementById('catInputConfirm');
+        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } };
+        openModal('catInputModal'); setTimeout(() => input.focus(), 100);
+    }
+
+    function openAddGoalModal(type) {
+        document.getElementById('goalModalTitle').innerText = `Add ${type==='weekly'?'Weekly':'Monthly'} Goal`;
+        document.getElementById('goalInputName').value = ''; renderCategories();
+        const btn = document.getElementById('btnSaveGoal');
+        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.onclick = () => addTask(type);
+        openModal('addGoalModal'); setTimeout(() => document.getElementById('goalInputName').focus(), 100);
+    }
+
+    function showConfirm(text, onConfirm) {
+        document.getElementById('confirmText').innerText = text;
+        const btn = document.getElementById('confirmActionBtn');
+        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.onclick = () => { onConfirm(); closeModal('confirmModal'); };
+        openModal('confirmModal');
+    }
+
+    /* --- HELPERS --- */
+    function setPriority(el, val) { currentInput.priority = val; el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
+    function setCategory(el, val) { currentInput.category = val; renderCategories(); }
+    function toggleTheme() { state.theme = state.theme === 'light' ? 'dark' : 'light'; document.documentElement.setAttribute('data-theme', state.theme); save(); }
+    function rainConfetti() {
+        const colors = ['#ef4444', '#6366f1', '#10b981', '#f59e0b', '#ec4899'];
+        for(let i=0; i<30; i++) {
+            const c = document.createElement('div'); c.classList.add('confetti');
+            c.style.left = Math.random() * 100 + 'vw'; c.style.background = colors[Math.floor(Math.random()*colors.length)];
+            c.style.animation = `fall ${Math.random()*2+1}s linear`; document.body.appendChild(c); setTimeout(() => c.remove(), 3000);
+        }
+        if(!document.getElementById('c-style')) { const s = document.createElement('style'); s.id = 'c-style'; s.innerHTML = `@keyframes fall { to { transform: translateY(105vh) rotate(360deg); } }`; document.head.appendChild(s); }
+    }
+
+    init();
+</script>
 </body>
 </html>
