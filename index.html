@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v12.2</title>
+    <title>Task Master v13</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -101,6 +101,22 @@
         .bar.has-data { background: var(--accent); opacity: 1; box-shadow: 0 0 12px var(--accent-glow); }
         .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
+        /* --- FILTER BAR (NEW) --- */
+        .filter-wrapper {
+            display: flex; align-items: center; gap: 10px; margin-top: -10px;
+            background: var(--bg-body); padding: 5px; overflow: hidden;
+        }
+        .filter-label { font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
+        .filter-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+        
+        .filter-chip {
+            padding: 6px 14px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
+        }
+        .filter-chip.active {
+            background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 4px 10px var(--accent-glow);
+        }
+
         /* --- SECTIONS --- */
         .section-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .add-icon-btn {
@@ -162,8 +178,6 @@
             color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
         }
         
-        /* --- CHIP COLORS LOGIC --- */
-        /* 1. Generic Active State (Categories): Adapts to Theme */
         .chip.active { 
             background: var(--text-primary); 
             color: var(--bg-card); 
@@ -172,7 +186,6 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
         }
 
-        /* 2. Specific Priorities: Force Color + White Text */
         .chip.p-high.active { background: var(--danger); border-color: var(--danger); color: #ffffff !important; }
         .chip.p-med.active { background: #f59e0b; border-color: #f59e0b; color: #ffffff !important; }
         .chip.p-low.active { background: var(--success); border-color: var(--success); color: #ffffff !important; }
@@ -252,6 +265,11 @@
             <div class="chart-grid"><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div></div>
             <div class="bars-container" id="chartBars"></div>
         </div>
+    </div>
+    
+    <div class="filter-wrapper">
+        <div class="filter-label">Filter:</div>
+        <div class="filter-scroll" id="filterContainer"></div>
     </div>
 
     <div class="main-input-wrap">
@@ -381,7 +399,7 @@
     let state = {
         todos: [], goals: { weekly: [], monthly: [] }, archives: {},
         categories: ['Personal', 'Work', 'Health'], theme: 'light',
-        graphMode: 'week', lastLoginDate: null 
+        graphMode: 'week', activeFilter: 'All', lastLoginDate: null 
     };
     let currentInput = { priority: 'low', category: 'Personal' };
 
@@ -393,6 +411,7 @@
         if(!state.categories || state.categories.length === 0) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
+        if(!state.activeFilter) state.activeFilter = 'All';
 
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
@@ -435,6 +454,7 @@
                 if(!data.todos || !data.categories) throw new Error("Invalid file structure");
                 if(confirm("This will replace your current data. Continue?")) {
                     state = data;
+                    state.activeFilter = 'All'; // Reset filter on import
                     save();
                     location.reload();
                 }
@@ -461,9 +481,16 @@
     }
 
     function renderAll() {
-        renderGraph(); renderCategories();
-        renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly');
-        document.getElementById('todayCount').innerText = `${state.todos.length} tasks`;
+        renderFilters();
+        renderGraph(); 
+        renderCategories();
+        renderTasks('daily'); 
+        renderTasks('weekly'); 
+        renderTasks('monthly');
+        
+        // Count displayed tasks (filtered)
+        const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length;
+        document.getElementById('todayCount').innerText = `${count} tasks`;
     }
 
     function createTaskObj(text, priority, category) {
@@ -485,15 +512,25 @@
             state.goals[type].push(createTaskObj(text, priority, category));
             closeModal('addGoalModal');
         }
-        save(); renderTasks(type); if(type==='daily') renderGraph();
+        save(); renderAll();
     }
 
     function renderTasks(type) {
         const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly');
         const container = document.getElementById(listId);
         container.innerHTML = '';
-        const source = type==='daily'?state.todos:state.goals[type];
-        if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No tasks yet</div>`; return; }
+        
+        let source = type==='daily'?state.todos:state.goals[type];
+        
+        // FILTER LOGIC
+        if(state.activeFilter !== 'All') {
+            source = source.filter(t => t.category === state.activeFilter);
+        }
+
+        if(source.length === 0) { 
+            container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter !== 'All' ? state.activeFilter.toLowerCase() : ''} tasks</div>`; 
+            return; 
+        }
         
         source.forEach(t => {
             const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
@@ -511,9 +548,10 @@
     }
 
     function toggleTask(type, id) {
-        const source = type==='daily'?state.todos:state.goals[type];
-        const t = source.find(x => x.id === id);
-        if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderTasks(type); if(type==='daily') renderGraph(); }
+        // Need to find in original array, not filtered one
+        const originalSource = type==='daily'?state.todos:state.goals[type];
+        const t = originalSource.find(x => x.id === id);
+        if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); }
     }
 
     function promptDelete(type, id) {
@@ -523,9 +561,33 @@
             setTimeout(() => {
                 if(type === 'daily') state.todos = state.todos.filter(x => x.id !== id);
                 else state.goals[type] = state.goals[type].filter(x => x.id !== id);
-                save(); renderTasks(type); if(type==='daily') renderGraph();
+                save(); renderAll();
             }, 300);
         });
+    }
+
+    /* --- FILTERS (NEW) --- */
+    function renderFilters() {
+        const container = document.getElementById('filterContainer');
+        container.innerHTML = '';
+        const filters = ['All', ...state.categories];
+        
+        filters.forEach(f => {
+            container.innerHTML += `
+                <div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" 
+                     onclick="setFilter('${f}')">
+                     ${f}
+                </div>`;
+        });
+    }
+
+    function setFilter(filter) {
+        state.activeFilter = filter;
+        // Auto-select category in input if not 'All'
+        if(filter !== 'All') {
+            currentInput.category = filter;
+        }
+        renderAll();
     }
 
     /* --- CATEGORIES --- */
@@ -556,7 +618,7 @@
         closeModal('catManagerModal');
         showInputModal("New Category", "Name...", (val) => {
             if(state.categories.includes(val)) return alert('Exists!');
-            state.categories.push(val); save(); renderCategories(); openCatManager();
+            state.categories.push(val); save(); renderAll(); openCatManager();
         });
     }
     
@@ -568,6 +630,7 @@
             const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; });
             updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly);
             if(currentInput.category === oldName) currentInput.category = newName;
+            if(state.activeFilter === oldName) state.activeFilter = newName;
             save(); renderAll(); openCatManager();
         });
     }
@@ -582,6 +645,7 @@
             const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; });
             fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly);
             if(currentInput.category === catName) currentInput.category = fallback;
+            if(state.activeFilter === catName) state.activeFilter = 'All';
             save(); renderAll(); openCatManager();
         });
     }
@@ -606,8 +670,16 @@
             const d = new Date(); d.setDate(d.getDate() - i);
             const dateKey = d.toLocaleDateString('en-CA');
             let completedCount = 0;
-            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed).length;
-            else if (state.archives[dateKey]) completedCount = state.archives[dateKey].completed.length;
+            
+            // FILTER GRAPH LOGIC
+            const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
+
+            if (dateKey === todayKey) {
+                completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
+            } else if (state.archives[dateKey]) {
+                completedCount = state.archives[dateKey].completed.filter(filterFn).length;
+            }
+
             if(completedCount > maxVal) maxVal = completedCount;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
             dataPoints.push({ label: dayLabel, val: completedCount, key: dateKey, isToday: (i===0) });
@@ -630,14 +702,17 @@
         let items = [];
         const todayKey = new Date().toLocaleDateString('en-CA');
         
+        // FILTER HISTORY LOGIC
+        const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
+
         if (dateKey === todayKey) {
-            state.todos.forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
+            state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
         } else if (state.archives[dateKey]) {
-            state.archives[dateKey].completed.forEach(t => items.push({ text: t.text, done: true, cat: t.category }));
-            state.archives[dateKey].missed.forEach(t => items.push({ text: t.text, done: false, cat: t.category }));
+            state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category }));
+            state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category }));
         }
         
-        if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records.</div>';
+        if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>';
         else items.forEach(item => {
             list.innerHTML += `
                 <div class="hist-item">
