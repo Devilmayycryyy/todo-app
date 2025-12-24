@@ -2,98 +2,413 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Todo App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Task Master Pro</title>
     <style>
+        :root {
+            /* Light Theme */
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --danger: #ef4444;
+            --success: #10b981;
+            --border: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --graph-bar: #e5e7eb;
+            --graph-active: #3b82f6;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #60a5fa;
+            --accent-hover: #3b82f6;
+            --danger: #f87171;
+            --success: #34d399;
+            --border: #334155;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --graph-bar: #334155;
+            --graph-active: #60a5fa;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
         body {
-            margin: 0;
-            padding: 0;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            transition: background-color 0.4s ease, color 0.4s ease;
+            min-height: 100vh;
+            padding: 20px 10px;
+            display: flex;
+            justify-content: center;
         }
-        .checkbox-custom {
-            width: 20px;
-            height: 20px;
+
+        /* Layout & Container */
+        .app-container {
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Card Styling */
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            transition: transform 0.2s, background-color 0.4s;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
+        .date-badge { font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; font-weight: 500; }
+        
+        .theme-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
             cursor: pointer;
-            accent-color: #3b82f6;
+            padding: 8px;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            background: var(--bg-body);
         }
-        .fade-in {
-            animation: fadeIn 0.3s ease-in;
+        .theme-btn:active { transform: scale(0.9) rotate(15deg); }
+
+        /* Graph Section */
+        .stats-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
+        .stats-header { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
+        .graph-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 100px;
+            padding-top: 10px;
+            gap: 6px;
+        }
+        .bar-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .bar {
+            width: 100%;
+            border-radius: 6px;
+            background: var(--graph-bar);
+            transition: height 1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s;
+            min-height: 4px;
+            position: relative;
+        }
+        .bar:hover::after {
+            content: attr(data-count);
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text-primary);
+            color: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .bar.active { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .day-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: bold; }
+
+        /* Input Area */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            position: sticky;
+            top: 10px;
+            z-index: 10;
+        }
+        .input-group input {
+            flex: 1;
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            box-shadow: var(--shadow);
+        }
+        .input-group input:focus { border-color: var(--accent); }
+        .add-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.3s;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+        }
+        .add-btn:active { transform: scale(0.95); }
+
+        /* Todo List */
+        .todo-list { display: flex; flex-direction: column; gap: 12px; }
+        .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            animation: slideIn 0.3s ease-out forwards;
+            position: relative;
+            overflow: hidden;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        .checkbox {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: 2px solid var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .checkbox.checked {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        .checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .todo-content { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .todo-text { font-size: 1rem; transition: color 0.3s; }
+        .todo-text.done { text-decoration: line-through; color: var(--text-secondary); }
+        .todo-meta { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .delete-btn:hover { background: var(--danger); color: white; }
+
+        /* History */
+        .history-btn {
+            width: 100%;
+            padding: 15px;
+            margin-top: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .history-btn:hover { background: var(--bg-body); }
+        
+        .history-section {
+            margin-top: 20px;
+            display: none;
+            animation: fadeIn 0.4s;
+        }
+        .history-section.show { display: block; }
+        .history-group { margin-bottom: 20px; }
+        .history-header {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+            margin-bottom: 8px;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Empty State */
+        .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
+        .empty-icon { font-size: 3rem; margin-bottom: 10px; display: block; opacity: 0.5; }
+
     </style>
 </head>
 <body>
-    <div id="app"></div>
+
+    <div class="app-container">
+        
+        <div class="card">
+            <div class="header">
+                <div>
+                    <h1>Task Master</h1>
+                    <div class="date-badge" id="currentDate">Loading...</div>
+                </div>
+                <button class="theme-btn" onclick="toggleTheme()" id="themeIcon">🌙</button>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+            <div class="stats-container">
+                <div class="stats-header">
+                    <span>Weekly Productivity</span>
+                    <span id="completedCount">0 completed today</span>
+                </div>
+                <div class="graph-area" id="graph">
+                    </div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="todoInput" placeholder="Add a new task..." autocomplete="off">
+            <button class="add-btn" onclick="addTodo()">+</button>
+        </div>
+
+        <div class="todo-list" id="todoList">
+            </div>
+
+        <button class="history-btn" onclick="toggleHistory()">📜 View History</button>
+        <div class="history-section" id="historySection">
+            </div>
+
+    </div>
 
     <script>
+        // --- STATE MANAGEMENT ---
         const state = {
-            darkMode: false,
-            todoText: '',
             todos: [],
             history: {},
-            showHistory: false,
+            theme: 'light',
             lastClearDate: ''
         };
 
-        function getTodayDate() {
-            return new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
+        // --- INIT ---
+        function init() {
+            // Load from LocalStorage
+            try {
+                const sTodos = localStorage.getItem('tm_todos');
+                const sHistory = localStorage.getItem('tm_history');
+                const sTheme = localStorage.getItem('tm_theme');
+                const sDate = localStorage.getItem('tm_date');
+
+                if (sTodos) state.todos = JSON.parse(sTodos);
+                if (sHistory) state.history = JSON.parse(sHistory);
+                if (sTheme) state.theme = sTheme;
+                if (sDate) state.lastClearDate = sDate;
+                else state.lastClearDate = getTodayStr();
+
+            } catch (e) { console.error("Load error", e); }
+
+            // Set Theme
+            document.documentElement.setAttribute('data-theme', state.theme);
+            document.getElementById('themeIcon').textContent = state.theme === 'dark' ? '☀️' : '🌙';
+
+            // Check Day Transition
+            checkNewDay();
+            
+            // Initial Render
+            render();
+            
+            // Input Listener
+            document.getElementById('todoInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addTodo();
             });
         }
 
-        function loadData() {
-            const saved = localStorage.getItem('todos');
-            const savedHistory = localStorage.getItem('todosHistory');
-            const savedDarkMode = localStorage.getItem('darkMode');
-            const savedLastClear = localStorage.getItem('lastClearDate');
-            
-            if (saved) state.todos = JSON.parse(saved);
-            if (savedHistory) state.history = JSON.parse(savedHistory);
-            if (savedDarkMode) state.darkMode = JSON.parse(savedDarkMode);
-            if (savedLastClear) state.lastClearDate = savedLastClear;
-            else state.lastClearDate = getTodayDate();
-            
-            checkNewDay();
+        // --- LOGIC ---
+        function getTodayStr() {
+            return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        function getShortDay(dateObj) {
+            return dateObj.toLocaleDateString('en-US', { weekday: 'short' });
         }
 
         function checkNewDay() {
-            const today = getTodayDate();
+            const today = getTodayStr();
             if (state.lastClearDate !== today) {
-                const completedTodos = state.todos.filter(t => t.completed);
-                
-                if (completedTodos.length > 0) {
-                    state.history[state.lastClearDate] = completedTodos.map(t => ({
-                        text: t.text,
-                        completedAt: t.completedAt
-                    }));
-                    localStorage.setItem('todosHistory', JSON.stringify(state.history));
+                // Archive completed tasks
+                const completed = state.todos.filter(t => t.completed);
+                if (completed.length > 0) {
+                    state.history[state.lastClearDate] = completed;
                 }
                 
-                state.todos = [];
+                // Keep only incomplete tasks
+                state.todos = state.todos.filter(t => !t.completed);
                 state.lastClearDate = today;
-                localStorage.setItem('lastClearDate', today);
-                localStorage.setItem('todos', JSON.stringify([]));
+                save();
             }
         }
 
+        function save() {
+            localStorage.setItem('tm_todos', JSON.stringify(state.todos));
+            localStorage.setItem('tm_history', JSON.stringify(state.history));
+            localStorage.setItem('tm_theme', state.theme);
+            localStorage.setItem('tm_date', state.lastClearDate);
+            render();
+        }
+
+        function toggleTheme() {
+            state.theme = state.theme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', state.theme);
+            document.getElementById('themeIcon').textContent = state.theme === 'dark' ? '☀️' : '🌙';
+            save();
+        }
+
         function addTodo() {
-            if (state.todoText.trim()) {
-                const newTodo = {
-                    id: Date.now().toString(),
-                    text: state.todoText,
-                    completed: false,
-                    createdAt: new Date().toISOString()
-                };
-                state.todos.push(newTodo);
-                state.todoText = '';
-                localStorage.setItem('todos', JSON.stringify(state.todos));
-                render();
-            }
+            const input = document.getElementById('todoInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            state.todos.unshift({
+                id: Date.now(),
+                text: text,
+                completed: false,
+                createdAt: new Date().toISOString()
+            });
+            input.value = '';
+            input.focus(); // Keep focus for desktop users
+            save();
         }
 
         function toggleTodo(id) {
@@ -101,240 +416,116 @@
             if (todo) {
                 todo.completed = !todo.completed;
                 todo.completedAt = todo.completed ? new Date().toISOString() : null;
-                localStorage.setItem('todos', JSON.stringify(state.todos));
-                render();
+                save();
             }
         }
 
-        function removeTodo(id) {
-            state.todos = state.todos.filter(t => t.id !== id);
-            localStorage.setItem('todos', JSON.stringify(state.todos));
-            render();
-        }
-
-        function toggleDarkMode() {
-            state.darkMode = !state.darkMode;
-            localStorage.setItem('darkMode', JSON.stringify(state.darkMode));
-            render();
+        function deleteTodo(id) {
+            if(confirm('Delete this task?')) {
+                state.todos = state.todos.filter(t => t.id !== id);
+                save();
+            }
         }
 
         function toggleHistory() {
-            state.showHistory = !state.showHistory;
-            render();
+            document.getElementById('historySection').classList.toggle('show');
         }
 
-        function clearHistory(date) {
-            delete state.history[date];
-            localStorage.setItem('todosHistory', JSON.stringify(state.history));
-            render();
-        }
-
-        function formatTime(isoString) {
-            const date = new Date(isoString);
-            return date.toLocaleTimeString('en-US', { 
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        function isToday(date) {
-            return date === getTodayDate();
-        }
-
-        function render() {
-            const darkClass = state.darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900';
-            const sortedHistoryDates = Object.keys(state.history).sort((a, b) => new Date(b) - new Date(a));
-            const completedCount = state.todos.filter(t => !t.completed).length;
-
-            const app = document.getElementById('app');
-            app.className = `min-h-screen ${darkClass} transition-colors duration-200`;
+        // --- GRAPH LOGIC ---
+        function generateGraphData() {
+            const data = [];
+            const today = new Date();
             
-            app.innerHTML = `
-                <div class="max-w-4xl mx-auto p-6">
-                    <!-- Header -->
-                    <div class="flex justify-between items-center mb-8">
-                        <div>
-                            <h1 class="text-4xl font-bold">Today's Todos</h1>
-                            <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-400' : 'text-gray-600'}">
-                                ${getTodayDate()}
-                            </p>
-                        </div>
-                        <button onclick="toggleDarkMode()" class="p-3 rounded-full ${state.darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} transition-colors shadow-lg">
-                            ${state.darkMode ? '☀️' : '🌙'}
-                        </button>
-                    </div>
+            // Get last 7 days
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                const dateStr = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                
+                let count = 0;
+                if (i === 0) {
+                    // Today: Count current completed tasks
+                    count = state.todos.filter(t => t.completed).length;
+                } else {
+                    // History: Count archived tasks
+                    if (state.history[dateStr]) {
+                        count = state.history[dateStr].length;
+                    }
+                }
+                data.push({ day: getShortDay(d), count: count, isToday: i === 0 });
+            }
+            return data;
+        }
 
-                    <!-- Input Section -->
-                    <div class="flex gap-3 mb-8">
-                        <input
-                            type="text"
-                            id="todoInput"
-                            value="${state.todoText}"
-                            placeholder="What needs to be done today?"
-                            class="flex-1 px-4 py-3 rounded-lg text-lg ${
-                                state.darkMode 
-                                    ? 'bg-gray-800 border-gray-700 placeholder-gray-500 text-white' 
-                                    : 'bg-white border-gray-200 placeholder-gray-400'
-                            } border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                        />
-                        <button onclick="addTodo()" class="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition-colors shadow-md">
-                            Add
-                        </button>
-                    </div>
+        // --- RENDERING ---
+        function render() {
+            // 1. Header
+            document.getElementById('currentDate').textContent = getTodayStr();
+            const todayCompleted = state.todos.filter(t => t.completed).length;
+            document.getElementById('completedCount').textContent = `${todayCompleted} completed today`;
 
-                    <!-- Today's Todos -->
-                    <div class="mb-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-xl font-semibold">
-                                Tasks <span class="text-lg ${state.darkMode ? 'text-gray-400' : 'text-gray-500'}">
-                                    (${completedCount}/${state.todos.length})
-                                </span>
-                            </h2>
+            // 2. Graph
+            const graphData = generateGraphData();
+            const maxVal = Math.max(...graphData.map(d => d.count), 5); // Minimum scale of 5
+            const graphEl = document.getElementById('graph');
+            graphEl.innerHTML = graphData.map(d => {
+                const height = (d.count / maxVal) * 100;
+                return `
+                    <div class="bar-wrapper">
+                        <div class="bar ${d.isToday ? 'active' : ''}" 
+                             style="height: ${height}%" 
+                             data-count="${d.count}"></div>
+                        <div class="day-label">${d.day}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // 3. Active List
+            const listEl = document.getElementById('todoList');
+            if (state.todos.length === 0) {
+                listEl.innerHTML = `<div class="empty-state"><span class="empty-icon">📝</span><p>No tasks yet. Start by adding one!</p></div>`;
+            } else {
+                listEl.innerHTML = state.todos.map(t => `
+                    <div class="todo-item">
+                        <div class="checkbox ${t.completed ? 'checked' : ''}" onclick="toggleTodo(${t.id})"></div>
+                        <div class="todo-content">
+                            <div class="todo-text ${t.completed ? 'done' : ''}">${t.text}</div>
                         </div>
-                        
-                        ${state.todos.length === 0 ? `
-                            <div class="text-center py-16 rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md">
-                                <p class="${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
-                                    No todos for today. Add one above to get started!
-                                </p>
+                        <button class="delete-btn" onclick="deleteTodo(${t.id})">🗑</button>
+                    </div>
+                `).join('');
+            }
+
+            // 4. History
+            const histEl = document.getElementById('historySection');
+            const dates = Object.keys(state.history).sort((a, b) => new Date(b) - new Date(a));
+            
+            if (dates.length === 0) {
+                histEl.innerHTML = `<div class="empty-state"><p>No history yet.</p></div>`;
+            } else {
+                histEl.innerHTML = dates.map(date => `
+                    <div class="card history-group">
+                        <div class="history-header">
+                            <span>${date}</span>
+                            <span>${state.history[date].length} Done</span>
+                        </div>
+                        ${state.history[date].map(t => `
+                            <div style="display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:0.9rem; color:var(--text-secondary);">
+                                <span style="color:var(--success)">✓</span>
+                                <span style="text-decoration:line-through">${t.text}</span>
                             </div>
-                        ` : `
-                            <div class="rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md divide-y ${state.darkMode ? 'divide-gray-700' : 'divide-gray-200'}">
-                                ${state.todos.map(todo => `
-                                    <div class="flex items-center gap-4 p-4 transition-all">
-                                        <input
-                                            type="checkbox"
-                                            ${todo.completed ? 'checked' : ''}
-                                            onchange="toggleTodo('${todo.id}')"
-                                            class="checkbox-custom"
-                                        />
-                                        <div class="flex-1">
-                                            <p class="text-lg transition-all ${
-                                                todo.completed 
-                                                    ? `line-through ${state.darkMode ? 'text-gray-500' : 'text-gray-400'}` 
-                                                    : ''
-                                            }">
-                                                ${todo.text}
-                                            </p>
-                                            ${todo.completed && todo.completedAt ? `
-                                                <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-600' : 'text-gray-400'}">
-                                                    Completed at ${formatTime(todo.completedAt)}
-                                                </p>
-                                            ` : ''}
-                                        </div>
-                                        <button
-                                            onclick="removeTodo('${todo.id}')"
-                                            class="p-2 rounded-full transition-colors ${
-                                                state.darkMode 
-                                                    ? 'hover:bg-gray-700 text-gray-400 hover:text-red-400' 
-                                                    : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'
-                                            }"
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `}
+                        `).join('')}
                     </div>
-
-                    <!-- History Toggle -->
-                    <button
-                        onclick="toggleHistory()"
-                        class="w-full p-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 transition-all ${
-                            state.darkMode 
-                                ? 'bg-gray-800 hover:bg-gray-700' 
-                                : 'bg-white hover:bg-gray-100'
-                        } shadow-md"
-                    >
-                        📅 ${state.showHistory ? 'Hide' : 'View'} History
-                    </button>
-
-                    <!-- History Section -->
-                    ${state.showHistory ? `
-                        <div class="mt-6 space-y-4 fade-in">
-                            <h2 class="text-2xl font-semibold mb-4">Past Days</h2>
-                            ${sortedHistoryDates.length === 0 ? `
-                                <div class="text-center py-12 rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md">
-                                    <p class="${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
-                                        No history yet. Complete some todos!
-                                    </p>
-                                </div>
-                            ` : sortedHistoryDates.map(date => `
-                                <div class="rounded-lg ${state.darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md overflow-hidden">
-                                    <div class="flex items-center justify-between p-4 ${
-                                        isToday(date) 
-                                            ? 'bg-blue-500 text-white' 
-                                            : state.darkMode ? 'bg-gray-750' : 'bg-gray-50'
-                                    }">
-                                        <div>
-                                            <h3 class="text-lg font-semibold">
-                                                ${isToday(date) ? '🎯 ' : ''}${date}
-                                            </h3>
-                                            <p class="text-sm ${
-                                                isToday(date) 
-                                                    ? 'text-blue-100' 
-                                                    : state.darkMode ? 'text-gray-400' : 'text-gray-500'
-                                            }">
-                                                ${state.history[date].length} ${state.history[date].length === 1 ? 'task' : 'tasks'} completed
-                                            </p>
-                                        </div>
-                                        <button
-                                            onclick="clearHistory('${date}')"
-                                            class="p-2 rounded-full transition-colors ${
-                                                isToday(date)
-                                                    ? 'hover:bg-blue-600 text-white'
-                                                    : state.darkMode 
-                                                        ? 'hover:bg-gray-700 text-gray-400' 
-                                                        : 'hover:bg-gray-200 text-gray-500'
-                                            }"
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
-                                    <div class="divide-y ${state.darkMode ? 'divide-gray-700' : 'divide-gray-200'}">
-                                        ${state.history[date].map((todo, idx) => `
-                                            <div class="p-4 flex items-start gap-3">
-                                                <span class="text-green-500 text-xl">✓</span>
-                                                <div class="flex-1">
-                                                    <p class="text-base">${todo.text}</p>
-                                                    ${todo.completedAt ? `
-                                                        <p class="text-sm mt-1 ${state.darkMode ? 'text-gray-500' : 'text-gray-400'}">
-                                                            ${formatTime(todo.completedAt)}
-                                                        </p>
-                                                    ` : ''}
-                                                </div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-
-            // Attach event listener to input
-            const input = document.getElementById('todoInput');
-            if (input) {
-                input.addEventListener('input', (e) => {
-                    state.todoText = e.target.value;
-                });
-                input.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') addTodo();
-                });
+                `).join('');
             }
         }
 
-        // Initialize
-        loadData();
-        render();
+        // Start
+        init();
+        
+        // Auto-refresh date every minute
+        setInterval(checkNewDay, 60000);
 
-        // Check for new day every minute
-        setInterval(() => {
-            checkNewDay();
-            render();
-        }, 60000);
     </script>
 </body>
 </html>
