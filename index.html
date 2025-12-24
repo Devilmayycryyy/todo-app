@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v14.1</title>
+    <title>Task Master v15 (Auto-Sync)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -18,7 +18,7 @@
             --border: #e2e8f0;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            --header-bg: rgba(241, 245, 249, 0.95); /* Semi-transparent background for sticky header */
+            --header-bg: rgba(241, 245, 249, 0.95);
         }
 
         [data-theme="dark"] {
@@ -46,7 +46,7 @@
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 
-        /* --- HEADER CARD --- */
+        /* --- HEADER --- */
         .header-card {
             background: var(--bg-card); border-radius: 24px; padding: 24px;
             box-shadow: var(--shadow); border: 1px solid var(--border);
@@ -69,6 +69,16 @@
             color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
         }
         .toggle-btn.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* --- CLOUD STATUS INDICATOR (NEW) --- */
+        .cloud-status {
+            font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 5px;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); transition: 0.3s; }
+        .status-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
+        .status-dot.success { background: var(--success); }
+        .status-dot.error { background: var(--danger); }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
         /* --- GRAPH --- */
         .chart-wrapper {
@@ -102,23 +112,13 @@
         .bar.has-data { background: var(--accent); opacity: 1; box-shadow: 0 0 12px var(--accent-glow); }
         .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
-        /* --- STICKY HEADER AREA (Input + Filters) --- */
-        /* FIX #1: Combined wrapper with solid background to prevent overlap issues */
+        /* --- STICKY HEADER --- */
         .sticky-wrapper {
-            position: sticky; 
-            top: 0; 
-            z-index: 50; 
-            background-color: var(--header-bg); /* Use semi-transparent theme bg */
-            backdrop-filter: blur(10px); /* Modern blur effect */
-            padding-top: 10px; 
-            padding-bottom: 15px; 
-            margin-bottom: 10px;
-            border-bottom: 1px solid transparent;
-            transition: border-color 0.3s;
+            position: sticky; top: 0; z-index: 50; 
+            background-color: var(--header-bg); backdrop-filter: blur(10px);
+            padding-top: 10px; padding-bottom: 15px; margin-bottom: 10px;
+            border-bottom: 1px solid transparent; transition: border-color 0.3s;
         }
-        /* Add a subtle line when scrolling (optional visual cue) */
-        .sticky-wrapper.is-pinned { border-bottom-color: var(--border); }
-
         .filter-wrapper {
             display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
             overflow: hidden; padding: 0 2px;
@@ -165,7 +165,7 @@
             cursor: pointer; flex-shrink: 0; transition: 0.2s; font-size: 0.8rem;
         }
 
-        /* --- SECTIONS --- */
+        /* --- SECTIONS & TASKS --- */
         .section-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .add-icon-btn {
             width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: white;
@@ -178,7 +178,6 @@
             border: 1px solid var(--border); box-shadow: var(--shadow);
         }
 
-        /* --- TASKS --- */
         .task-list { display: flex; flex-direction: column; gap: 10px; }
         .task-card {
             background: var(--bg-card); padding: 14px; border-radius: 14px; border: 1px solid var(--border);
@@ -230,24 +229,20 @@
         .btn-confirm { background: var(--accent); color: white; }
         .btn-danger { background: var(--danger); color: white; }
         
-        /* Data/Settings Buttons */
         .data-btn { display: flex; align-items: center; gap: 10px; padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: var(--bg-body); color: var(--text-primary); font-weight: 600; width: 100%; text-align: left; }
         .data-btn:hover { background: var(--bg-card); border-color: var(--accent); }
         .data-icon { font-size: 1.2rem; }
 
-        /* Cloud Sync Section */
         .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
         .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
         .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
         .sync-input:focus { border-color: var(--accent); }
         
-        /* Cat List */
         .cat-list-ui { text-align: left; max-height: 250px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
         .cat-item-ui { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: 10px; align-items: center; border: 1px solid var(--border); }
         .cat-actions { display: flex; gap: 8px; }
         .cat-icon-btn { cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.6; }
         
-        /* History */
         .history-list { text-align: left; max-height: 300px; overflow-y: auto; margin: 10px 0; padding-right: 5px; }
         .hist-item { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
         .hist-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -267,6 +262,12 @@
             <div>
                 <h2 style="margin:0;">Dashboard</h2>
                 <div style="font-size:0.9rem; color:var(--text-secondary); font-weight:600;" id="dateDisplay">...</div>
+                
+                <div class="cloud-status" id="cloudIndicator" style="display:none;">
+                    <div class="status-dot" id="cloudDot"></div>
+                    <span id="cloudText">Saved</span>
+                </div>
+
             </div>
             <div class="header-actions">
                 <div class="graph-toggle">
@@ -288,7 +289,6 @@
             <div class="filter-label">Filter:</div>
             <div class="filter-scroll" id="filterContainer"></div>
         </div>
-
         <div class="search-bar">
             <input type="text" class="main-input" id="taskInput" placeholder="Add a new task..." autocomplete="off">
             <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
@@ -304,26 +304,10 @@
         </div>
     </div>
 
-    <div>
-        <div class="section-title">Today's Missions <span style="font-size:0.8em; opacity:0.5; font-weight:400" id="todayCount">0 tasks</span></div>
-        <div class="task-list" id="taskListDaily"></div>
-    </div>
-
+    <div><div class="section-title">Today's Missions <span style="font-size:0.8em; opacity:0.5; font-weight:400" id="todayCount">0 tasks</span></div><div class="task-list" id="taskListDaily"></div></div>
     <div class="goals-wrapper">
-        <div class="goal-column">
-            <div class="section-title">
-                <span style="color:var(--accent)">Weekly Targets</span>
-                <div class="add-icon-btn" onclick="openAddGoalModal('weekly')">＋</div>
-            </div>
-            <div class="task-list" id="taskListWeekly"></div>
-        </div>
-        <div class="goal-column">
-            <div class="section-title">
-                <span style="color:#ec4899">Monthly Missions</span>
-                <div class="add-icon-btn" onclick="openAddGoalModal('monthly')">＋</div>
-            </div>
-            <div class="task-list" id="taskListMonthly"></div>
-        </div>
+        <div class="goal-column"><div class="section-title"><span style="color:var(--accent)">Weekly Targets</span><div class="add-icon-btn" onclick="openAddGoalModal('weekly')">＋</div></div><div class="task-list" id="taskListWeekly"></div></div>
+        <div class="goal-column"><div class="section-title"><span style="color:#ec4899">Monthly Missions</span><div class="add-icon-btn" onclick="openAddGoalModal('monthly')">＋</div></div><div class="task-list" id="taskListMonthly"></div></div>
     </div>
 
 </div>
@@ -332,261 +316,213 @@
     <div class="modal-card" style="max-height:85vh; overflow-y:auto;">
         <div class="modal-title">Settings & Data</div>
         <div class="modal-subtitle">Backup or Sync your data</div>
-
-        <button class="data-btn" onclick="exportData()">
-            <span class="data-icon">📥</span>
-            <div>
-                <div style="font-size:0.95rem">Save Local Backup</div>
-                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download .json file</div>
-            </div>
-        </button>
-
-        <button class="data-btn" onclick="triggerImport()">
-            <span class="data-icon">📤</span>
-            <div>
-                <div style="font-size:0.95rem">Restore Local Backup</div>
-                <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div>
-            </div>
-        </button>
+        <button class="data-btn" onclick="exportData()"><span class="data-icon">📥</span><div><div style="font-size:0.95rem">Save Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download .json file</div></div></button>
+        <button class="data-btn" onclick="triggerImport()"><span class="data-icon">📤</span><div><div style="font-size:0.95rem">Restore Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div></div></button>
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
-
         <div class="sync-section">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span>
-                <a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a>
-            </div>
-            
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
-            <input type="password" class="sync-input" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()">
-            
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
-            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
-
-            <div class="modal-btns">
-                <button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload()">Upload</button>
-                <button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload()">Download</button>
-            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label><input type="password" class="sync-input" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()">
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label><input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
+            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
-
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close</button>
     </div>
 </div>
 
 <div class="modal-overlay" id="addGoalModal">
-    <div class="modal-card">
-        <div class="modal-title" id="goalModalTitle">Add Goal</div>
-        <input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?">
-        <div style="display:flex; gap:10px; margin-bottom:15px;">
-            <select class="modal-input" id="goalInputPriority" style="margin:0"><option value="low">Low</option><option value="med">Med</option><option value="high">High</option></select>
-            <select class="modal-input" id="goalInputCat" style="margin:0"></select>
-        </div>
-        <div class="modal-btns">
-            <button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button>
-            <button class="btn-base btn-confirm" id="btnSaveGoal">Save</button>
-        </div>
-    </div>
+    <div class="modal-card"><div class="modal-title" id="goalModalTitle">Add Goal</div><input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?"><div style="display:flex; gap:10px; margin-bottom:15px;"><select class="modal-input" id="goalInputPriority" style="margin:0"><option value="low">Low</option><option value="med">Med</option><option value="high">High</option></select><select class="modal-input" id="goalInputCat" style="margin:0"></select></div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button><button class="btn-base btn-confirm" id="btnSaveGoal">Save</button></div></div>
 </div>
 
-<div class="modal-overlay" id="catManagerModal">
-    <div class="modal-card">
-        <div class="modal-title">Categories</div>
-        <div class="cat-list-ui" id="catManagerList"></div>
-        <button class="btn-base btn-confirm" style="width:100%; margin-bottom:10px;" onclick="promptAddCategory()">+ New Category</button>
-        <button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('catManagerModal')">Done</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="catInputModal">
-    <div class="modal-card">
-        <div class="modal-title" id="catInputTitle">New Category</div>
-        <input type="text" class="modal-input" id="catInputField" placeholder="Name...">
-        <div class="modal-btns">
-            <button class="btn-base btn-cancel" onclick="closeModal('catInputModal')">Cancel</button>
-            <button class="btn-base btn-confirm" id="catInputConfirm">Save</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="historyModal">
-    <div class="modal-card">
-        <div class="modal-title" id="histDateTitle">Date</div>
-        <div id="histContent" class="history-list"></div>
-        <button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('historyModal')">Close</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="confirmModal">
-    <div class="modal-card">
-        <div class="modal-title">Are you sure?</div>
-        <div class="modal-subtitle" id="confirmText">This cannot be undone.</div>
-        <div class="modal-btns">
-            <button class="btn-base btn-cancel" onclick="closeModal('confirmModal')">Cancel</button>
-            <button class="btn-base btn-danger" id="confirmActionBtn">Yes, Delete</button>
-        </div>
-    </div>
-</div>
+<div class="modal-overlay" id="catManagerModal"><div class="modal-card"><div class="modal-title">Categories</div><div class="cat-list-ui" id="catManagerList"></div><button class="btn-base btn-confirm" style="width:100%; margin-bottom:10px;" onclick="promptAddCategory()">+ New Category</button><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('catManagerModal')">Done</button></div></div>
+<div class="modal-overlay" id="catInputModal"><div class="modal-card"><div class="modal-title" id="catInputTitle">New Category</div><input type="text" class="modal-input" id="catInputField" placeholder="Name..."><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('catInputModal')">Cancel</button><button class="btn-base btn-confirm" id="catInputConfirm">Save</button></div></div></div>
+<div class="modal-overlay" id="historyModal"><div class="modal-card"><div class="modal-title" id="histDateTitle">Date</div><div id="histContent" class="history-list"></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('historyModal')">Close</button></div></div>
+<div class="modal-overlay" id="confirmModal"><div class="modal-card"><div class="modal-title">Are you sure?</div><div class="modal-subtitle" id="confirmText">This cannot be undone.</div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('confirmModal')">Cancel</button><button class="btn-base btn-danger" id="confirmActionBtn">Yes, Delete</button></div></div></div>
 
 <button class="theme-fab" onclick="toggleTheme()">🌓</button>
 
 <script>
-    let state = {
-        todos: [], goals: { weekly: [], monthly: [] }, archives: {},
-        categories: ['Personal', 'Work', 'Health'], theme: 'light',
-        graphMode: 'week', activeFilter: 'All', lastLoginDate: null 
-    };
+    let state = { todos: [], goals: { weekly: [], monthly: [] }, archives: {}, categories: ['Personal', 'Work', 'Health'], theme: 'light', graphMode: 'week', activeFilter: 'All', lastLoginDate: null };
     let currentInput = { priority: 'low', category: 'Personal' };
+    let syncTimer = null; // For debouncing
 
     function init() {
         const saved = localStorage.getItem('tm_v11_data');
-        if(saved) {
-            try { state = JSON.parse(saved); } catch(e){ console.log('Resetting state'); }
-        }
-        // Defaults
-        if(!state.categories || state.categories.length === 0) state.categories = ['Personal'];
+        if(saved) try { state = JSON.parse(saved); } catch(e){}
+        if(!state.categories || !state.categories.length) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
         if(!state.activeFilter) state.activeFilter = 'All';
 
-        // Load Sync Config
         const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
         if(syncConfig.apiKey) document.getElementById('syncApiKey').value = syncConfig.apiKey;
         if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
 
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+        
         checkDayRollover();
         renderAll();
+
+        // Init Cloud Sync Status
+        if(syncConfig.apiKey && syncConfig.binId) {
+            document.getElementById('cloudIndicator').style.display = 'flex';
+            updateCloudUI('idle', 'Cloud Active');
+            // Auto Pull on load
+            cloudDownload(true);
+        }
         
-        // Listeners
+        // Window Focus Pull (Simple "Real-time" effect)
+        window.onfocus = () => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); };
+
         document.getElementById('taskInput').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
         document.getElementById('catInputField').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('catInputConfirm').click(); });
         document.getElementById('goalInputName').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('btnSaveGoal').click(); });
     }
 
-    function save() { localStorage.setItem('tm_v11_data', JSON.stringify(state)); }
+    /* --- AUTO SYNC CORE --- */
+    function save() { 
+        localStorage.setItem('tm_v11_data', JSON.stringify(state)); 
+        triggerAutoSync(); // Trigger background sync on every local save
+    }
 
-    /* --- CLOUD SYNC LOGIC (FIXED) --- */
+    function triggerAutoSync() {
+        const apiKey = document.getElementById('syncApiKey').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        
+        // Only run if configured
+        if(!apiKey || !binId || binId.length < 10) return;
+
+        // Visual Feedback
+        updateCloudUI('syncing', 'Syncing...');
+
+        // Debounce: Wait 2 seconds after last action to avoid API spam
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => {
+            cloudUpload(true);
+        }, 2000);
+    }
+
+    function updateCloudUI(status, text) {
+        const div = document.getElementById('cloudIndicator');
+        const dot = document.getElementById('cloudDot');
+        const txt = document.getElementById('cloudText');
+        div.style.display = 'flex';
+        txt.innerText = text;
+        dot.className = 'status-dot'; // reset
+        
+        if(status === 'syncing') dot.classList.add('syncing');
+        if(status === 'success') dot.classList.add('success');
+        if(status === 'error') dot.classList.add('error');
+    }
+
     function saveSyncConfig() {
         const apiKey = document.getElementById('syncApiKey').value.trim();
         const binId = document.getElementById('syncBinId').value.trim();
         localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId }));
+        if(apiKey && binId.length > 10) {
+            document.getElementById('cloudIndicator').style.display = 'flex';
+            updateCloudUI('idle', 'Ready');
+        }
     }
 
-    async function cloudUpload() {
+    async function cloudUpload(isSilent) {
         const apiKey = document.getElementById('syncApiKey').value.trim();
         let binId = document.getElementById('syncBinId').value.trim();
-        const status = document.getElementById('syncStatus');
+        const statusEl = document.getElementById('syncStatus');
         
-        if(!apiKey) return status.innerText = "Error: API Key required.";
+        if(!apiKey) return;
+        if(binId && binId.length < 10) return;
+
+        if(!isSilent) statusEl.innerText = "Uploading...";
         
-        // FIX #2: Validate Bin ID format before trying to fetch
-        if (binId && binId.length < 10) {
-             status.innerHTML = '<span style="color:var(--danger)">Invalid Bin ID. Clear field to create new.</span>';
-             return;
-        }
-
-        status.innerText = "Uploading...";
-
         try {
-            // If No Bin ID, Create New (POST)
             if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey },
-                    body: JSON.stringify(state)
-                });
+                // Create New
+                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
                 const res = await req.json();
                 if(req.ok) {
                     binId = res.metadata.id;
                     document.getElementById('syncBinId').value = binId;
                     saveSyncConfig();
-                    status.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId} (Copy this for other devices)</span>`;
-                } else throw new Error(res.message || "Upload Failed");
+                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`;
+                    updateCloudUI('success', 'Saved');
+                } else throw new Error(res.message);
             } else {
-                // Update Existing (PUT)
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey },
-                    body: JSON.stringify(state)
-                });
-                if(req.ok) status.innerHTML = '<span style="color:var(--success)">Synced Successfully!</span>';
-                else throw new Error("Update Failed (Check API Key or Bin ID)");
+                // Update
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                if(req.ok) {
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
+                    updateCloudUI('success', 'Saved');
+                } else throw new Error("Update Failed");
             }
-        } catch(e) { status.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; }
+        } catch(e) { 
+            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+            updateCloudUI('error', 'Error');
+        }
     }
 
-    async function cloudDownload() {
+    async function cloudDownload(isSilent) {
         const apiKey = document.getElementById('syncApiKey').value.trim();
         const binId = document.getElementById('syncBinId').value.trim();
-        const status = document.getElementById('syncStatus');
+        const statusEl = document.getElementById('syncStatus');
 
-        if(!apiKey || !binId) return status.innerText = "Error: Key & Bin ID required.";
-        if (binId.length < 10) return status.innerHTML = '<span style="color:var(--danger)">Invalid Bin ID format.</span>';
-
-        status.innerText = "Downloading...";
+        if(!apiKey || !binId || binId.length < 10) return;
+        if(!isSilent) statusEl.innerText = "Downloading...";
+        
+        // Show syncing if silent (auto-pull)
+        if(isSilent) updateCloudUI('syncing', 'Checking...');
 
         try {
-            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                headers: { 'X-Master-Key': apiKey }
-            });
+            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
             const res = await req.json();
             if(req.ok) {
-                state = res.record;
-                save();
-                renderAll();
-                status.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
-            } else throw new Error(res.message || "Download Failed");
-        } catch(e) { status.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; }
+                // Determine if remote is different (simple string comparison for efficiency)
+                if(JSON.stringify(res.record) !== JSON.stringify(state)) {
+                    state = res.record;
+                    localStorage.setItem('tm_v11_data', JSON.stringify(state)); // save without triggering upload
+                    renderAll();
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
+                    updateCloudUI('success', 'Updated');
+                } else {
+                    updateCloudUI('success', 'Synced'); // No changes
+                }
+            } else throw new Error(res.message);
+        } catch(e) { 
+            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+            updateCloudUI('error', 'Conn Err');
+        }
     }
 
-    /* --- DATA EXPORT / IMPORT --- */
+    /* --- STANDARD APP LOGIC --- */
     function exportData() {
         const dataStr = JSON.stringify(state, null, 2);
         const blob = new Blob([dataStr], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const date = new Date().toISOString().split('T')[0];
-        a.href = url;
-        a.download = `taskmaster_backup_${date}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        a.href = url; a.download = `taskmaster_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     }
-
     function triggerImport() { document.getElementById('importFile').click(); }
-
     function handleFileLoad(input) {
-        const file = input.files[0];
-        if(!file) return;
+        const file = input.files[0]; if(!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
                 const data = JSON.parse(e.target.result);
-                if(!data.todos || !data.categories) throw new Error("Invalid file structure");
-                if(confirm("This will replace your current data. Continue?")) {
-                    state = data;
-                    state.activeFilter = 'All'; // Reset filter on import
-                    save();
-                    location.reload();
-                }
-            } catch(err) { alert("Error importing: " + err.message); }
+                if(confirm("Replace current data?")) { state = data; state.activeFilter = 'All'; save(); location.reload(); }
+            } catch(err) { alert("Error: " + err.message); }
         };
-        reader.readAsText(file);
-        input.value = ''; // Reset
+        reader.readAsText(file); input.value = '';
     }
 
-    /* --- CORE LOGIC --- */
     function checkDayRollover() {
         const todayKey = new Date().toLocaleDateString('en-CA');
         if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
             const yesterdayTasks = state.todos;
             const completed = yesterdayTasks.filter(t => t.completed);
             const missed = yesterdayTasks.filter(t => !t.completed);
-            if (completed.length > 0 || missed.length > 0) {
-                state.archives[state.lastLoginDate] = { completed, missed };
-            }
+            if (completed.length > 0 || missed.length > 0) state.archives[state.lastLoginDate] = { completed, missed };
             state.todos = []; 
         }
         state.lastLoginDate = todayKey;
@@ -594,21 +530,13 @@
     }
 
     function renderAll() {
-        renderFilters();
-        renderGraph(); 
-        renderCategories();
-        renderTasks('daily'); 
-        renderTasks('weekly'); 
-        renderTasks('monthly');
-        
-        // Count displayed tasks (filtered)
+        renderFilters(); renderGraph(); renderCategories();
+        renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly');
         const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length;
         document.getElementById('todayCount').innerText = `${count} tasks`;
     }
 
-    function createTaskObj(text, priority, category) {
-        return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString() };
-    }
+    function createTaskObj(text, priority, category) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString() }; }
 
     function addTask(type) {
         let text, priority, category;
@@ -632,31 +560,12 @@
         const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly');
         const container = document.getElementById(listId);
         container.innerHTML = '';
-        
         let source = type==='daily'?state.todos:state.goals[type];
-        
-        // FILTER LOGIC
-        if(state.activeFilter !== 'All') {
-            source = source.filter(t => t.category === state.activeFilter);
-        }
-
-        if(source.length === 0) { 
-            container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter !== 'All' ? state.activeFilter.toLowerCase() : ''} tasks</div>`; 
-            return; 
-        }
-        
+        if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter);
+        if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter!=='All'?state.activeFilter.toLowerCase():''} tasks</div>`; return; }
         source.forEach(t => {
             const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
-            container.innerHTML += `
-                <div class="task-card" id="task-${t.id}">
-                    <div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div>
-                    <div class="task-body">
-                        <div class="task-txt ${t.completed?'done':''}">${t.text}</div>
-                        <div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span></div>
-                    </div>
-                    <div class="del-icon" onclick="promptDelete('${type}', ${t.id})">🗑</div>
-                </div>
-            `;
+            container.innerHTML += `<div class="task-card" id="task-${t.id}"><div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div><div class="task-body"><div class="task-txt ${t.completed?'done':''}">${t.text}</div><div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span></div></div><div class="del-icon" onclick="promptDelete('${type}', ${t.id})">🗑</div></div>`;
         });
     }
 
@@ -678,23 +587,13 @@
         });
     }
 
-    /* --- FILTERS --- */
     function renderFilters() {
-        const container = document.getElementById('filterContainer');
-        container.innerHTML = '';
+        const container = document.getElementById('filterContainer'); container.innerHTML = '';
         const filters = ['All', ...state.categories];
-        filters.forEach(f => {
-            container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`;
-        });
+        filters.forEach(f => { container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`; });
     }
+    function setFilter(filter) { state.activeFilter = filter; if(filter !== 'All') currentInput.category = filter; renderAll(); }
 
-    function setFilter(filter) {
-        state.activeFilter = filter;
-        if(filter !== 'All') currentInput.category = filter;
-        renderAll();
-    }
-
-    /* --- CATEGORIES --- */
     function renderCategories() {
         const container = document.getElementById('catContainer'); container.innerHTML = '';
         state.categories.forEach(cat => { container.innerHTML += `<div class="chip ${currentInput.category===cat?'active':''}" onclick="setCategory(this, '${cat}')">${cat}</div>`; });
@@ -704,169 +603,51 @@
 
     function openCatManager() {
         const list = document.getElementById('catManagerList'); list.innerHTML = '';
-        state.categories.forEach((cat, idx) => {
-            list.innerHTML += `
-                <div class="cat-item-ui">
-                    <span style="font-weight:600; color:var(--text-primary)">${cat}</span>
-                    <div class="cat-actions">
-                        <div class="cat-icon-btn" onclick="promptRenameCategory(${idx})" style="color:var(--accent)">✎</div>
-                        <div class="cat-icon-btn" onclick="promptDeleteCategory(${idx})" style="color:var(--danger)">🗑</div>
-                    </div>
-                </div>
-            `;
-        });
+        state.categories.forEach((cat, idx) => { list.innerHTML += `<div class="cat-item-ui"><span style="font-weight:600; color:var(--text-primary)">${cat}</span><div class="cat-actions"><div class="cat-icon-btn" onclick="promptRenameCategory(${idx})" style="color:var(--accent)">✎</div><div class="cat-icon-btn" onclick="promptDeleteCategory(${idx})" style="color:var(--danger)">🗑</div></div></div>`; });
         openModal('catManagerModal');
     }
+    function promptAddCategory() { closeModal('catManagerModal'); showInputModal("New Category", "Name...", (val) => { if(state.categories.includes(val)) return alert('Exists!'); state.categories.push(val); save(); renderAll(); openCatManager(); }); }
+    function promptRenameCategory(idx) { const oldName = state.categories[idx]; closeModal('catManagerModal'); showInputModal("Rename Category", oldName, (newName) => { state.categories[idx] = newName; const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; }); updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly); if(currentInput.category === oldName) currentInput.category = newName; if(state.activeFilter === oldName) state.activeFilter = newName; save(); renderAll(); openCatManager(); }); }
+    function promptDeleteCategory(idx) { if(state.categories.length <= 1) return alert("Keep at least one."); closeModal('catManagerModal'); showConfirm(`Delete "${state.categories[idx]}"?`, () => { const catName = state.categories[idx]; state.categories.splice(idx, 1); const fallback = state.categories[0]; const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; }); fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly); if(currentInput.category === catName) currentInput.category = fallback; if(state.activeFilter === catName) state.activeFilter = 'All'; save(); renderAll(); openCatManager(); }); }
 
-    function promptAddCategory() {
-        closeModal('catManagerModal');
-        showInputModal("New Category", "Name...", (val) => {
-            if(state.categories.includes(val)) return alert('Exists!');
-            state.categories.push(val); save(); renderAll(); openCatManager();
-        });
-    }
-    
-    function promptRenameCategory(idx) {
-        const oldName = state.categories[idx];
-        closeModal('catManagerModal');
-        showInputModal("Rename Category", oldName, (newName) => {
-            state.categories[idx] = newName;
-            const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; });
-            updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly);
-            if(currentInput.category === oldName) currentInput.category = newName;
-            if(state.activeFilter === oldName) state.activeFilter = newName;
-            save(); renderAll(); openCatManager();
-        });
-    }
-
-    function promptDeleteCategory(idx) {
-        if(state.categories.length <= 1) return alert("Keep at least one category.");
-        closeModal('catManagerModal');
-        showConfirm(`Delete "${state.categories[idx]}"?`, () => {
-            const catName = state.categories[idx];
-            state.categories.splice(idx, 1);
-            const fallback = state.categories[0];
-            const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; });
-            fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly);
-            if(currentInput.category === catName) currentInput.category = fallback;
-            if(state.activeFilter === catName) state.activeFilter = 'All';
-            save(); renderAll(); openCatManager();
-        });
-    }
-
-    /* --- GRAPH & HISTORY --- */
-    function setGraph(mode) {
-        state.graphMode = mode;
-        document.getElementById('btn-week').classList.toggle('active', mode==='week');
-        document.getElementById('btn-month').classList.toggle('active', mode==='month');
-        document.getElementById('chartBars').classList.toggle('month-view', mode==='month');
-        renderGraph();
-    }
-
+    function setGraph(mode) { state.graphMode = mode; document.getElementById('btn-week').classList.toggle('active', mode==='week'); document.getElementById('btn-month').classList.toggle('active', mode==='month'); document.getElementById('chartBars').classList.toggle('month-view', mode==='month'); renderGraph(); }
     function renderGraph() {
         const container = document.getElementById('chartBars'); container.innerHTML = '';
         const limit = state.graphMode === 'week' ? 7 : 30;
         const todayKey = new Date().toLocaleDateString('en-CA');
-        let maxVal = 5;
-        let dataPoints = [];
-        
+        let maxVal = 5; let dataPoints = [];
         for(let i=limit-1; i>=0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            const dateKey = d.toLocaleDateString('en-CA');
-            let completedCount = 0;
+            const d = new Date(); d.setDate(d.getDate() - i); const dateKey = d.toLocaleDateString('en-CA'); let completedCount = 0;
             const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-            if (dateKey === todayKey) {
-                completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
-            } else if (state.archives[dateKey]) {
-                completedCount = state.archives[dateKey].completed.filter(filterFn).length;
-            }
+            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
+            else if (state.archives[dateKey]) completedCount = state.archives[dateKey].completed.filter(filterFn).length;
             if(completedCount > maxVal) maxVal = completedCount;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
             dataPoints.push({ label: dayLabel, val: completedCount, key: dateKey, isToday: (i===0) });
         }
-
-        dataPoints.forEach(d => {
-            const h = (d.val / maxVal) * 100;
-            const barClass = d.val > 0 ? 'bar has-data' : 'bar';
-            container.innerHTML += `
-                <div class="bar-group" onclick="openHistoryDetail('${d.key}')">
-                    <div class="${barClass}" style="height:${Math.max(h, 6)}%"></div>
-                    <div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div>
-                </div>`;
-        });
+        dataPoints.forEach(d => { const h = (d.val / maxVal) * 100; const barClass = d.val > 0 ? 'bar has-data' : 'bar'; container.innerHTML += `<div class="bar-group" onclick="openHistoryDetail('${d.key}')"><div class="${barClass}" style="height:${Math.max(h, 6)}%"></div><div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div></div>`; });
     }
-
     function openHistoryDetail(dateKey) {
         document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString();
-        const list = document.getElementById('histContent'); list.innerHTML = '';
-        let items = [];
+        const list = document.getElementById('histContent'); list.innerHTML = ''; let items = [];
         const todayKey = new Date().toLocaleDateString('en-CA');
         const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-
-        if (dateKey === todayKey) {
-            state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
-        } else if (state.archives[dateKey]) {
-            state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category }));
-            state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category }));
-        }
-        
+        if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
+        else if (state.archives[dateKey]) { state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); }
         if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>';
-        else items.forEach(item => {
-            list.innerHTML += `
-                <div class="hist-item">
-                    <div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div>
-                    <div style="flex:1">
-                        <div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div>
-                        <div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div>
-                    </div>
-                </div>`;
-        });
+        else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; });
         openModal('historyModal');
     }
 
-    /* --- MODALS --- */
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    
-    function showInputModal(title, placeholder, callback) {
-        document.getElementById('catInputTitle').innerText = title;
-        const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder;
-        const btn = document.getElementById('catInputConfirm');
-        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } };
-        openModal('catInputModal'); setTimeout(() => input.focus(), 100);
-    }
-
-    function openAddGoalModal(type) {
-        document.getElementById('goalModalTitle').innerText = `Add ${type==='weekly'?'Weekly':'Monthly'} Goal`;
-        document.getElementById('goalInputName').value = ''; renderCategories();
-        const btn = document.getElementById('btnSaveGoal');
-        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.onclick = () => addTask(type);
-        openModal('addGoalModal'); setTimeout(() => document.getElementById('goalInputName').focus(), 100);
-    }
-
-    function showConfirm(text, onConfirm) {
-        document.getElementById('confirmText').innerText = text;
-        const btn = document.getElementById('confirmActionBtn');
-        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.onclick = () => { onConfirm(); closeModal('confirmModal'); };
-        openModal('confirmModal');
-    }
-
-    /* --- HELPERS --- */
+    function showInputModal(title, placeholder, callback) { document.getElementById('catInputTitle').innerText = title; const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder; const btn = document.getElementById('catInputConfirm'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } }; openModal('catInputModal'); setTimeout(() => input.focus(), 100); }
+    function openAddGoalModal(type) { document.getElementById('goalModalTitle').innerText = `Add ${type==='weekly'?'Weekly':'Monthly'} Goal`; document.getElementById('goalInputName').value = ''; renderCategories(); const btn = document.getElementById('btnSaveGoal'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => addTask(type); openModal('addGoalModal'); setTimeout(() => document.getElementById('goalInputName').focus(), 100); }
+    function showConfirm(text, onConfirm) { document.getElementById('confirmText').innerText = text; const btn = document.getElementById('confirmActionBtn'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { onConfirm(); closeModal('confirmModal'); }; openModal('confirmModal'); }
     function setPriority(el, val) { currentInput.priority = val; el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
     function setCategory(el, val) { currentInput.category = val; renderCategories(); }
     function toggleTheme() { state.theme = state.theme === 'light' ? 'dark' : 'light'; document.documentElement.setAttribute('data-theme', state.theme); save(); }
-    function rainConfetti() {
-        const colors = ['#ef4444', '#6366f1', '#10b981', '#f59e0b', '#ec4899'];
-        for(let i=0; i<30; i++) {
-            const c = document.createElement('div'); c.classList.add('confetti');
-            c.style.left = Math.random() * 100 + 'vw'; c.style.background = colors[Math.floor(Math.random()*colors.length)];
-            c.style.animation = `fall ${Math.random()*2+1}s linear`; document.body.appendChild(c); setTimeout(() => c.remove(), 3000);
-        }
-        if(!document.getElementById('c-style')) { const s = document.createElement('style'); s.id = 'c-style'; s.innerHTML = `@keyframes fall { to { transform: translateY(105vh) rotate(360deg); } }`; document.head.appendChild(s); }
-    }
+    function rainConfetti() { const colors = ['#ef4444', '#6366f1', '#10b981', '#f59e0b', '#ec4899']; for(let i=0; i<30; i++) { const c = document.createElement('div'); c.classList.add('confetti'); c.style.left = Math.random() * 100 + 'vw'; c.style.background = colors[Math.floor(Math.random()*colors.length)]; c.style.animation = `fall ${Math.random()*2+1}s linear`; document.body.appendChild(c); setTimeout(() => c.remove(), 3000); } if(!document.getElementById('c-style')) { const s = document.createElement('style'); s.id = 'c-style'; s.innerHTML = `@keyframes fall { to { transform: translateY(105vh) rotate(360deg); } }`; document.head.appendChild(s); } }
 
     init();
 </script>
