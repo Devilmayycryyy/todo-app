@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v35 (Firebase Fixed)</title>
+    <title>Task Master v36 (Sync Logic Fixed)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -741,7 +741,9 @@
                 } else if (JSON.stringify(remote) === JSON.stringify(state)) {
                     updateCloudUI('success', 'Synced');
                 } else {
-                    updateCloudUI('success', 'Local > Cloud');
+                    // FIXED: Force upload if local is newer than cloud
+                    updateCloudUI('syncing', 'Pushing...');
+                    cloudUpload(true);
                 }
             } else if (!remote) {
                 // DB is empty, maybe first sync
