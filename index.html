@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v32 (PC Fix)</title>
+    <title>Task Master v33 (Edit & Polish)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -175,7 +175,7 @@
             animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
-        .task-main-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+        .task-main-row { display: flex; align-items: center; gap: 12px; width: 100%; position: relative; z-index: 2; }
         .goal-column .task-card { background: var(--bg-body); border: 1px solid rgba(0,0,0,0.05); }
         .task-card.deleting { transform: translateX(100%); opacity: 0; }
         
@@ -193,37 +193,57 @@
         .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; align-items: center; flex-wrap: wrap; }
         .meta-tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-body); color: var(--text-secondary); border: 1px solid var(--border); }
         
-        /* NEW BADGES */
         .badge-transferred { background: var(--warning) !important; color: white !important; border-color: var(--warning) !important; }
         .badge-fresh { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
 
         .p-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
         
-        .task-actions { display: flex; gap: 5px; opacity: 0.5; transition: 0.2s; }
+        .task-actions { display: flex; gap: 2px; opacity: 0.5; transition: 0.2s; }
         .task-card:hover .task-actions { opacity: 1; }
-        .action-icon { cursor: pointer; padding: 4px; font-size: 1rem; color: var(--text-secondary); }
-        .action-icon:hover { color: var(--accent); transform: scale(1.1); }
-        .action-icon.del:hover { color: var(--danger); }
+        .action-icon { cursor: pointer; padding: 6px; font-size: 1rem; color: var(--text-secondary); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+        .action-icon:hover { color: var(--accent); background: var(--bg-body); }
+        .action-icon.del:hover { color: var(--danger); background: #fef2f2; }
+        
+        .chevron-icon { transition: transform 0.3s ease; }
+        .chevron-icon.rotated { transform: rotate(180deg); }
 
         /* --- SUBTASKS --- */
-        .subtask-area { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; display: none; }
-        .subtask-area.active { display: block; animation: fadeIn 0.3s; }
-        .sub-progress { height: 4px; background: var(--bg-body); border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+        .subtask-area { 
+            max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-body); margin: 0 -14px -14px -14px; padding: 0 14px; border-top: 1px solid transparent;
+        }
+        .subtask-area.active { 
+            max-height: 500px; /* Arbitrary large height for animation */
+            padding-top: 10px; padding-bottom: 10px; border-top-color: var(--border);
+        }
+        .sub-progress { height: 4px; background: rgba(0,0,0,0.05); border-radius: 2px; margin-bottom: 12px; overflow: hidden; }
         .sub-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
-        .sub-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 6px; color: var(--text-secondary); }
-        .sub-check { width: 16px; height: 16px; border: 1px solid var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        
+        .sub-item { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-secondary); padding-left: 5px; }
+        .sub-check { width: 18px; height: 18px; border: 1px solid var(--text-secondary); border-radius: 6px; cursor: pointer; display: flex; justify-content: center; align-items: center; flex-shrink: 0; background: var(--bg-card); }
         .sub-check.checked { background: var(--accent); border-color: var(--accent); }
-        .sub-check.checked::after { content: '✓'; color: white; font-size: 10px; }
-        .sub-input { width: 100%; border: none; background: var(--bg-body); padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; outline: none; color: var(--text-primary); }
+        .sub-check.checked::after { content: '✓'; color: white; font-size: 12px; }
+        
+        .sub-text { flex: 1; cursor: text; padding: 4px 6px; border-radius: 4px; border: 1px solid transparent; transition: 0.2s; }
+        .sub-text:hover { background: var(--bg-card); border-color: var(--border); }
+        .sub-text-input { width: 100%; border: 1px solid var(--accent); border-radius: 4px; padding: 4px 6px; font-size: 0.9rem; outline: none; background: var(--bg-card); color: var(--text-primary); }
+        
+        .sub-del { font-size: 1rem; cursor: pointer; color: var(--text-secondary); opacity: 0; transition: 0.2s; padding: 0 4px; }
+        .sub-item:hover .sub-del { opacity: 0.5; }
+        .sub-del:hover { opacity: 1; color: var(--danger); }
+
+        .sub-input-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .sub-input-main { flex: 1; border: 1px solid var(--border); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; outline: none; color: var(--text-primary); }
+        .sub-input-main:focus { border-color: var(--accent); }
 
         /* --- MODALS --- */
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
-            z-index: 2000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
+            z-index: 3000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
         }
         .modal-overlay.active { display: flex; opacity: 1; }
         .modal-card {
-            background: var(--bg-card); padding: 25px; border-radius: 24px; width: 90%; max-width: 360px;
+            background: var(--bg-card); padding: 25px; border-radius: 24px; width: 90%; max-width: 400px;
             text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9); 
             transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid var(--border);
         }
@@ -231,7 +251,9 @@
         .modal-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; color: var(--text-primary); }
         .modal-subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; }
         .modal-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 1rem; outline: none; margin-bottom: 15px; }
-        .modal-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .modal-label { text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; display: block; margin-top: 12px; }
+        
+        .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
         .btn-base { flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: 0.2s; }
         .btn-cancel { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
         .btn-confirm { background: var(--accent); color: white; }
@@ -377,6 +399,30 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="editTaskModal">
+    <div class="modal-card">
+        <div class="modal-title">Edit Task</div>
+        
+        <span class="modal-label">Title</span>
+        <input type="text" class="modal-input" id="editTaskTitle" placeholder="Task name">
+        
+        <span class="modal-label">Priority</span>
+        <div class="chips-row" id="editPriorityChips">
+            <div class="chip p-low" onclick="setEditPriority('low')">Low</div>
+            <div class="chip p-med" onclick="setEditPriority('med')">Medium</div>
+            <div class="chip p-high" onclick="setEditPriority('high')">High</div>
+        </div>
+
+        <span class="modal-label">Category</span>
+        <div class="chips-row" id="editCategoryChips"></div>
+
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('editTaskModal')">Cancel</button>
+            <button class="btn-base btn-confirm" onclick="saveTaskEdit()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="reminderModal"><div class="modal-card"><div class="modal-title">Set Reminder</div><div class="modal-subtitle">When should I remind you?</div><div class="reminder-grid"><button class="time-btn" onclick="confirmReminder(15)">15m</button><button class="time-btn" onclick="confirmReminder(30)">30m</button><button class="time-btn" onclick="confirmReminder(60)">1h</button><button class="time-btn" onclick="confirmReminder(120)">2h</button></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('reminderModal')">Cancel</button></div></div>
 
 <div class="modal-overlay" id="addGoalModal">
@@ -411,7 +457,9 @@
     let pendingReminderTask = null;
     let pendingRolloverTasks = [];
     
-    // NEW: Runtime "Dirty" flag to prevent overwrites
+    // Edit Buffer
+    let editingTaskInfo = null;
+    
     let isDirty = false;
 
     function init() {
@@ -455,6 +503,7 @@
         document.getElementById('quick_add_input').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
         document.getElementById('catInputField').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('catInputConfirm').click(); });
         document.getElementById('goalInputName').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('btnSaveGoal').click(); });
+        document.getElementById('editTaskTitle').addEventListener('keypress', e => { if(e.key==='Enter') saveTaskEdit(); });
         
         document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key.toLowerCase() === 'n') { e.preventDefault(); document.getElementById('quick_add_input').focus(); } if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFocusMode(); } if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); document.getElementById('quick_add_input').blur(); } });
     }
@@ -576,7 +625,7 @@
     function save() { 
         state.updatedAt = Date.now(); 
         localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
-        isDirty = true; // Mark as dirty on local save
+        isDirty = true; 
         triggerAutoSync(); 
     }
     
@@ -593,7 +642,6 @@
     function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
     function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
     
-    // UPLOAD: Always safe to push if we are dirty
     async function cloudUpload(isSilent) {
         const apiKey = document.getElementById('app_token_field').value.trim();
         let binId = document.getElementById('syncBinId').value.trim();
@@ -608,14 +656,14 @@
                     binId = res.metadata.id; 
                     document.getElementById('syncBinId').value = binId; 
                     saveSyncConfig(); 
-                    isDirty = false; // Clean
+                    isDirty = false; 
                     if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; 
                     updateCloudUI('success', 'Saved'); 
                 } else throw new Error(res.message);
             } else {
                 const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
                 if(req.ok) { 
-                    isDirty = false; // Clean
+                    isDirty = false; 
                     if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
                     updateCloudUI('success', 'Saved'); 
                 } else throw new Error("Update Failed");
@@ -623,14 +671,8 @@
         } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); }
     }
 
-    // DOWNLOAD: Safe Merge Strategy
     async function cloudDownload(isSilent) {
-        // 1. If we have unsaved changes (Dirty), FORCE UPLOAD instead of download
-        if (isDirty) {
-            console.log("Local changes pending. Uploading instead of downloading.");
-            cloudUpload(true);
-            return;
-        }
+        if (isDirty) { cloudUpload(true); return; }
 
         const apiKey = document.getElementById('app_token_field').value.trim();
         const binId = document.getElementById('syncBinId').value.trim();
@@ -647,24 +689,11 @@
                 const localTime = state.updatedAt || 0;
                 const remoteTime = remote.updatedAt || 0;
 
-                // 2. Only merge if remote is actually newer
                 if(remoteTime > localTime) {
-                    // SMART MERGE: Combine lists by ID
                     const mergedTodos = [...state.todos, ...remote.todos];
                     const uniqueTodosMap = new Map();
+                    mergedTodos.forEach(t => { if (!uniqueTodosMap.has(t.id)) uniqueTodosMap.set(t.id, t); else uniqueTodosMap.set(t.id, t); });
                     
-                    // Priority: Remote wins if conflict, but local keeps strictly local tasks
-                    mergedTodos.forEach(t => {
-                        if (!uniqueTodosMap.has(t.id)) {
-                            uniqueTodosMap.set(t.id, t);
-                        } else {
-                            // If task exists in both, check which one was updated last (simulated via timestamp check)
-                            // Ideally we trust remote here as it is "newer" state
-                            uniqueTodosMap.set(t.id, t); 
-                        }
-                    });
-                    
-                    // Merge Goals
                     const mergeGoals = (local, remote) => {
                         const map = new Map();
                         [...local, ...(remote || [])].forEach(g => map.set(g.id, g));
@@ -674,8 +703,6 @@
                     state.todos = Array.from(uniqueTodosMap.values());
                     state.goals.weekly = mergeGoals(state.goals.weekly, remote.goals.weekly);
                     state.goals.monthly = mergeGoals(state.goals.monthly, remote.goals.monthly);
-                    
-                    // Merge Config & Archives (Remote wins for simplicity in this version)
                     state.archives = { ...state.archives, ...remote.archives };
                     state.updatedAt = remote.updatedAt;
 
@@ -743,16 +770,202 @@
             }
 
             let subHtml = ''; 
-            if(t.subtasks && t.subtasks.length > 0) { t.subtasks.forEach((sub, sIdx) => { subHtml += `<div class="sub-item"><div class="sub-check ${sub.completed?'checked':''}" onclick="toggleSubtask('${type}', ${t.id}, ${sIdx})"></div><span style="${sub.completed?'text-decoration:line-through;opacity:0.6':''}">${sub.text}</span></div>`; }); } 
+            if(t.subtasks && t.subtasks.length > 0) { 
+                t.subtasks.forEach((sub, sIdx) => { 
+                    subHtml += `
+                    <div class="sub-item">
+                        <div class="sub-check ${sub.completed?'checked':''}" onclick="toggleSubtask('${type}', ${t.id}, ${sIdx})"></div>
+                        <div class="sub-text" onclick="editSubtask('${type}', ${t.id}, ${sIdx})" style="${sub.completed?'text-decoration:line-through;opacity:0.6':''}">${sub.text}</div>
+                        <div class="sub-del" onclick="deleteSubtask('${type}', ${t.id}, ${sIdx})">×</div>
+                    </div>`; 
+                }); 
+            } 
             
-            container.innerHTML += `<div class="task-card ${type==='daily'?'draggable':''}" id="task-${t.id}" ${draggableAttr} data-id="${t.id}"><div class="task-main-row">${dragHandle}<div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div><div class="task-body"><div class="task-txt ${t.completed?'done':''}">${t.text}</div><div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span>${badgeHtml}${subCount > 0 ? `<span class="meta-tag" style="background:${varCSS('--accent-glow')}">${subDone}/${subCount}</span>` : ''}</div></div><div class="task-actions"><div class="action-icon" onclick="toggleSubInput('${t.id}')" title="Subtasks">📝</div><div class="action-icon" onclick="openReminderModal('${t.text}')" title="Remind">⏰</div><div class="action-icon del" onclick="promptDelete('${type}', ${t.id})">🗑</div></div></div><div class="subtask-area" id="sub-${t.id}">${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}<div id="sublist-${t.id}">${subHtml}</div><input type="text" class="sub-input" placeholder="Add step..." onkeydown="addSubtask(event, '${type}', ${t.id})"></div></div>`; 
+            container.innerHTML += `
+            <div class="task-card ${type==='daily'?'draggable':''}" id="task-${t.id}" ${draggableAttr} data-id="${t.id}">
+                <div class="task-main-row">
+                    ${dragHandle}
+                    <div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div>
+                    <div class="task-body">
+                        <div class="task-txt ${t.completed?'done':''}">${t.text}</div>
+                        <div class="task-meta">
+                            <span class="p-dot" style="background:${pColor}"></span>
+                            <span class="meta-tag">${t.category}</span>
+                            ${badgeHtml}
+                            ${subCount > 0 ? `<span class="meta-tag" style="background:${varCSS('--accent-glow')}">${subDone}/${subCount}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <div class="action-icon" onclick="openEditTaskModal('${type}', ${t.id})" title="Edit">✎</div>
+                        <div class="action-icon" onclick="openReminderModal('${t.text}')" title="Remind">⏰</div>
+                        <div class="action-icon" onclick="toggleSubInput('${t.id}')" title="Subtasks">
+                            <div class="chevron-icon" id="chev-${t.id}">▼</div>
+                        </div>
+                        <div class="action-icon del" onclick="promptDelete('${type}', ${t.id})">🗑</div>
+                    </div>
+                </div>
+                <div class="subtask-area" id="sub-${t.id}">
+                    ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}
+                    <div id="sublist-${t.id}">${subHtml}</div>
+                    <div class="sub-input-row">
+                        <div style="font-size:0.9rem; opacity:0.5;">+</div>
+                        <input type="text" class="sub-input-main" placeholder="Add subtask..." onkeydown="addSubtask(event, '${type}', ${t.id})">
+                    </div>
+                </div>
+            </div>`; 
         }); 
     }
     
     function varCSS(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
-    function toggleSubInput(id) { const el = document.getElementById(`sub-${id}`); el.classList.toggle('active'); if(el.classList.contains('active')) el.querySelector('input').focus(); }
-    function addSubtask(e, type, parentId) { if(e.key !== 'Enter') return; const txt = e.target.value.trim(); if(!txt) return; const list = type==='daily'?state.todos:state.goals[type]; const task = list.find(t => t.id === parentId); if(task) { if(!task.subtasks) task.subtasks = []; task.subtasks.push({ text: txt, completed: false }); save(); renderAll(); setTimeout(() => { const el = document.getElementById(`sub-${parentId}`); el.classList.add('active'); el.querySelector('input').focus(); }, 50); } }
-    function toggleSubtask(type, parentId, subIdx) { const list = type==='daily'?state.todos:state.goals[type]; const task = list.find(t => t.id === parentId); if(task && task.subtasks[subIdx]) { task.subtasks[subIdx].completed = !task.subtasks[subIdx].completed; save(); renderAll(); setTimeout(() => document.getElementById(`sub-${parentId}`).classList.add('active'), 0); } }
+    
+    // --- UI INTERACTIONS ---
+    function toggleSubInput(id) { 
+        const el = document.getElementById(`sub-${id}`); 
+        const chev = document.getElementById(`chev-${id}`);
+        el.classList.toggle('active'); 
+        if(chev) chev.classList.toggle('rotated');
+        if(el.classList.contains('active')) {
+            const inp = el.querySelector('input');
+            if(inp) inp.focus();
+        }
+    }
+    
+    function addSubtask(e, type, parentId) { 
+        if(e.key !== 'Enter') return; 
+        const txt = e.target.value.trim(); 
+        if(!txt) return; 
+        const list = type==='daily'?state.todos:state.goals[type]; 
+        const task = list.find(t => t.id === parentId); 
+        if(task) { 
+            if(!task.subtasks) task.subtasks = []; 
+            task.subtasks.push({ text: txt, completed: false }); 
+            save(); renderAll(); 
+            // Re-open list
+            setTimeout(() => { 
+                document.getElementById(`sub-${parentId}`).classList.add('active'); 
+                document.getElementById(`chev-${parentId}`).classList.add('rotated');
+                document.querySelector(`#sub-${parentId} input`).focus();
+            }, 50); 
+        } 
+    }
+
+    // --- NEW EDITING LOGIC ---
+
+    // 1. Edit Main Task
+    function openEditTaskModal(type, id) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === id);
+        if(!task) return;
+
+        editingTaskInfo = { type, id };
+        
+        document.getElementById('editTaskTitle').value = task.text;
+        
+        // Setup Priority Chips
+        const pContainer = document.getElementById('editPriorityChips');
+        pContainer.innerHTML = '';
+        ['low', 'med', 'high'].forEach(p => {
+            pContainer.innerHTML += `<div class="chip p-${p} ${task.priority === p ? 'active' : ''}" onclick="setEditPriority('${p}')">${p.charAt(0).toUpperCase() + p.slice(1)}</div>`;
+        });
+        
+        // Setup Category Chips
+        const cContainer = document.getElementById('editCategoryChips');
+        cContainer.innerHTML = '';
+        state.categories.forEach(c => {
+            cContainer.innerHTML += `<div class="chip ${task.category === c ? 'active' : ''}" onclick="setEditCategory(this, '${c}')">${c}</div>`;
+        });
+
+        openModal('editTaskModal');
+    }
+
+    function setEditPriority(val) {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        if(task) task.priority = val;
+        // Re-render chips
+        openEditTaskModal(editingTaskInfo.type, editingTaskInfo.id);
+    }
+
+    function setEditCategory(el, val) {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        if(task) task.category = val;
+        // Visual Update
+        el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    function saveTaskEdit() {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        const newTitle = document.getElementById('editTaskTitle').value.trim();
+        
+        if(task && newTitle) {
+            task.text = newTitle;
+            // Priority/Cat already updated in memory via setter functions, just save state
+            save();
+            renderAll();
+            closeModal('editTaskModal');
+        }
+    }
+
+    // 2. Edit Subtask
+    function editSubtask(type, taskId, subIdx) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if (!task || !task.subtasks[subIdx]) return;
+
+        const subItemDiv = document.querySelector(`#sub-${taskId} .sub-item:nth-child(${subIdx + 1})`);
+        const textDiv = subItemDiv.querySelector('.sub-text');
+        
+        // Swap text for input
+        const currentText = task.subtasks[subIdx].text;
+        textDiv.outerHTML = `<input type="text" class="sub-text-input" value="${currentText}" 
+            onblur="saveSubtaskEdit('${type}', ${taskId}, ${subIdx}, this.value)" 
+            onkeydown="if(event.key==='Enter') this.blur()">`;
+        
+        const input = subItemDiv.querySelector('input');
+        input.focus();
+    }
+
+    function saveSubtaskEdit(type, taskId, subIdx, newText) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if(task && task.subtasks[subIdx]) {
+            if (newText.trim() === "") {
+                // Optional: Delete if empty? keeping it simple for now, revert
+            } else {
+                task.subtasks[subIdx].text = newText.trim();
+            }
+            save();
+            renderAll();
+            // Keep open
+            setTimeout(() => { 
+                document.getElementById(`sub-${taskId}`).classList.add('active'); 
+                document.getElementById(`chev-${taskId}`).classList.add('rotated');
+            }, 50);
+        }
+    }
+
+    function deleteSubtask(type, taskId, subIdx) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if(task && task.subtasks[subIdx]) {
+            task.subtasks.splice(subIdx, 1);
+            save();
+            renderAll();
+            setTimeout(() => { 
+                document.getElementById(`sub-${taskId}`).classList.add('active'); 
+                document.getElementById(`chev-${taskId}`).classList.add('rotated');
+            }, 50);
+        }
+    }
+
+    function toggleSubtask(type, parentId, subIdx) { const list = type==='daily'?state.todos:state.goals[type]; const task = list.find(t => t.id === parentId); if(task && task.subtasks[subIdx]) { task.subtasks[subIdx].completed = !task.subtasks[subIdx].completed; save(); renderAll(); setTimeout(() => { document.getElementById(`sub-${parentId}`).classList.add('active'); document.getElementById(`chev-${parentId}`).classList.add('rotated'); }, 0); } }
+    
     function handleDragStart(e, id) { dragSrcEl = e.target.closest('.task-card'); dragSrcEl.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); }
     function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; document.getElementById('taskListDaily').classList.add('drag-over'); return false; }
     function handleDragEnd(e) { if(dragSrcEl) dragSrcEl.classList.remove('dragging'); document.getElementById('taskListDaily').classList.remove('drag-over'); }
