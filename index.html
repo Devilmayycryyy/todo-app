@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v26 (Visual Fix)</title>
+    <title>Task Master v27 (Analytics)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -87,28 +87,42 @@
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- GRAPH (STACKED) --- */
+        /* --- GRAPH (ANALYTICS) --- */
         .chart-wrapper {
-            position: relative; height: 180px; width: 100%;
+            position: relative; height: 200px; width: 100%;
             border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
         }
         .chart-grid { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
         .grid-line { width: 100%; height: 1px; background: var(--border); opacity: 0.4; }
+        
         .bars-container { display: flex; align-items: flex-end; justify-content: space-between; width: 100%; height: 100%; padding-top: 20px; z-index: 2; gap: 8px; }
         .bars-container.month-view { overflow-x: auto; justify-content: flex-start; gap: 10px; padding-bottom: 5px; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
+        
         .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative; min-width: 30px; cursor: pointer; }
-        .month-view .bar-group { flex: 0 0 auto; width: 28px; }
-        .bar-stack { width: 12px; border-radius: 6px; background: var(--bg-body); display: flex; flex-direction: column-reverse; overflow: hidden; min-height: 6px; transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
+        .month-view .bar-group { flex: 0 0 auto; width: 34px; }
+        
+        .bar-stack {
+            width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); 
+            display: flex; flex-direction: column-reverse; /* Green on bottom */
+            overflow: hidden; min-height: 6px; transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+        }
+        
         .bar-segment { width: 100%; transition: height 0.3s ease; }
         .bar-segment.done { background: var(--success); }
-        .bar-segment.missed { background: var(--danger); }
+        .bar-segment.missed { background: var(--danger); opacity: 0.8; }
         .bar-segment.remaining { background: var(--border); } 
-        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
-        /* --- STICKY HEADER (FIXED BACKGROUND) --- */
+        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; text-align: center; line-height: 1.2; }
+        .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; font-family: monospace; font-weight: 600; opacity: 0; transform: translateY(5px); transition: 0.2s; }
+        .bar-group:hover .count-label { opacity: 1; transform: translateY(0); }
+        /* Always show count for today */
+        .bar-group.today .count-label { opacity: 1; transform: translateY(0); color: var(--accent); }
+
+        /* --- STICKY HEADER (FIXED) --- */
         .sticky-wrapper {
             position: sticky; top: 0; z-index: 2000;
-            background-color: var(--bg-body); /* ESSENTIAL FIX: Opaque background */
+            background-color: var(--bg-body); /* OPAQUE FIX */
             padding-top: 15px; padding-bottom: 15px; margin-bottom: 15px;
             border-bottom: 1px solid var(--border);
             box-shadow: 0 10px 30px -15px rgba(0,0,0,0.1);
@@ -265,10 +279,7 @@
     </style>
 </head>
 <body>
-<div style="height:0; overflow:hidden; position:absolute;">
-    <input type="text" name="fake_username_trap" tabindex="-1">
-    <input type="password" name="fake_password_trap" tabindex="-1">
-</div>
+<div style="height:0; overflow:hidden; position:absolute;"><input type="text" name="fake_username"><input type="password" name="fake_password"></div>
 
 <div class="container">
 
@@ -306,13 +317,7 @@
         </div>
         
         <div class="search-bar">
-            <input type="text" class="main-input" id="quick_add_input" 
-                   name="random_task_search_field_v26" 
-                   placeholder="New Task (Press 'N')..." 
-                   autocomplete="off" 
-                   readonly 
-                   onfocus="this.removeAttribute('readonly');"
-            >
+            <input type="text" class="main-input" id="quick_add_input" name="task_entry_search" placeholder="New Task (Press 'N')..." autocomplete="new-password" role="presentation" readonly onfocus="this.removeAttribute('readonly');">
             <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
         </div>
         
@@ -359,10 +364,8 @@
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
-            
             <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
-            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off">
-            
+            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
             <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
             <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
@@ -458,6 +461,7 @@
             const completed = previousTasks.filter(t => t.completed);
             const incomplete = previousTasks.filter(t => !t.completed);
 
+            // Always archive completed
             if (completed.length > 0) {
                 if (!state.archives[state.lastLoginDate]) state.archives[state.lastLoginDate] = { completed: [], missed: [] };
                 state.archives[state.lastLoginDate].completed = completed;
@@ -482,12 +486,15 @@
             state.todos = [...pendingRolloverTasks, ...state.todos];
             sortTasks(state.todos); 
             showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
+            // DO NOT Add to archives if transferred
         } else {
+            // Archive logic: Need to calculate "Yesterday" properly based on stored date if available
+            // Simplified here to just yesterday
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const yKey = yesterday.toLocaleDateString('en-CA');
             if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
             state.archives[yKey].missed = pendingRolloverTasks;
-            showToast("Tasks archived to history");
+            showToast("Tasks archived as missed");
         }
         closeModal('rolloverModal');
         save();
@@ -509,7 +516,7 @@
                 done = state.todos.filter(t => t.completed && filterFn(t)).length;
                 remaining = state.todos.filter(t => !t.completed && filterFn(t)).length;
             } else if (state.archives[dateKey]) {
-                done = state.archives[dateKey].completed.filter(filterFn).length;
+                done = state.archives[dateKey].completed ? state.archives[dateKey].completed.filter(filterFn).length : 0;
                 missed = state.archives[dateKey].missed ? state.archives[dateKey].missed.filter(filterFn).length : 0;
             }
             
@@ -521,11 +528,14 @@
 
         dataPoints.forEach(d => { 
             const hTotal = ((d.done + d.missed + d.remaining) / maxVal) * 100;
+            const totalCount = d.done + d.missed + d.remaining;
+            
             container.innerHTML += `
-                <div class="bar-group" onclick="openHistoryDetail('${d.key}')">
+                <div class="bar-group ${d.isToday ? 'today' : ''}" onclick="openHistoryDetail('${d.key}')">
+                    <div class="count-label">${d.done}/${totalCount}</div>
                     <div class="bar-stack" style="height:${Math.max(hTotal, 6)}%">
-                        <div class="bar-segment done" style="height:${(d.done/(d.done+d.missed+d.remaining))*100}%"></div>
-                        <div class="bar-segment ${d.isToday ? 'remaining' : 'missed'}" style="height:${((d.missed+d.remaining)/(d.done+d.missed+d.remaining))*100}%"></div>
+                        <div class="bar-segment done" style="height:${(d.done/totalCount)*100}%"></div>
+                        <div class="bar-segment ${d.isToday ? 'remaining' : 'missed'}" style="height:${((d.missed+d.remaining)/totalCount)*100}%"></div>
                     </div>
                     <div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div>
                 </div>`;
@@ -579,7 +589,7 @@
     function promptRenameCategory(idx) { const oldName = state.categories[idx]; closeModal('catManagerModal'); showInputModal("Rename Category", oldName, (newName) => { state.categories[idx] = newName; const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; }); updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly); if(currentInput.category === oldName) { currentInput.category = newName; state.config.lastCategory = newName; } if(state.activeFilter === oldName) state.activeFilter = newName; save(); renderAll(); openCatManager(); }); }
     function promptDeleteCategory(idx) { if(state.categories.length <= 1) return alert("Keep at least one."); closeModal('catManagerModal'); showConfirm(`Delete "${state.categories[idx]}"?`, () => { const catName = state.categories[idx]; state.categories.splice(idx, 1); const fallback = state.categories[0]; const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; }); fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly); if(currentInput.category === catName) { currentInput.category = fallback; state.config.lastCategory = fallback; } if(state.activeFilter === catName) state.activeFilter = 'All'; save(); renderAll(); openCatManager(); }); }
     function setGraph(mode) { state.graphMode = mode; document.getElementById('btn-week').classList.toggle('active', mode==='week'); document.getElementById('btn-month').classList.toggle('active', mode==='month'); document.getElementById('chartBars').classList.toggle('month-view', mode==='month'); renderGraph(); }
-    function openHistoryDetail(dateKey) { document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString(); const list = document.getElementById('histContent'); list.innerHTML = ''; let items = []; const todayKey = new Date().toLocaleDateString('en-CA'); const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter); if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category })); else if (state.archives[dateKey]) { state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); } if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>'; else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; }); openModal('historyModal'); }
+    function openHistoryDetail(dateKey) { document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString(); const list = document.getElementById('histContent'); list.innerHTML = ''; let items = []; const todayKey = new Date().toLocaleDateString('en-CA'); const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter); if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category })); else if (state.archives[dateKey]) { if(state.archives[dateKey].completed) state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); } if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>'; else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; }); openModal('historyModal'); }
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     function showInputModal(title, placeholder, callback) { document.getElementById('catInputTitle').innerText = title; const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder; const btn = document.getElementById('catInputConfirm'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } }; openModal('catInputModal'); setTimeout(() => input.focus(), 100); }
