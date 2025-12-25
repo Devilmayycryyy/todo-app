@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v29 (Complete)</title>
+    <title>Task Master v30 (Roadmap Complete)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -14,7 +14,7 @@
             --accent-glow: rgba(99, 102, 241, 0.3);
             --danger: #ef4444;
             --success: #10b981;
-            --warning: #f59e0b;
+            --warning: #f59e0b; /* Orange for Transferred */
             --border: #e2e8f0;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -42,6 +42,7 @@
             overflow-x: hidden;
         }
 
+        /* FOCUS MODE */
         body.focus-active .header-card, 
         body.focus-active .goals-wrapper,
         body.focus-active .graph-toggle,
@@ -52,6 +53,7 @@
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
 
+        /* --- HEADER --- */
         .header-card {
             background: var(--bg-card); border-radius: 24px; padding: 24px;
             box-shadow: var(--shadow); border: 1px solid var(--border);
@@ -85,9 +87,9 @@
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- GRAPH --- */
+        /* --- GRAPH (ANALYTICS) --- */
         .chart-wrapper {
-            position: relative; height: 200px; width: 100%;
+            position: relative; height: 220px; width: 100%;
             border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
         }
         .chart-grid { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
@@ -99,7 +101,6 @@
         .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative; min-width: 30px; cursor: pointer; }
         .month-view .bar-group { flex: 0 0 auto; width: 34px; }
         
-        /* Stacked Bar Logic */
         .bar-stack {
             width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); 
             display: flex; flex-direction: column-reverse; /* Green on bottom */
@@ -113,7 +114,7 @@
         .bar-segment.remaining { background: var(--border); } 
 
         .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; text-align: center; line-height: 1.2; }
-        .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; font-family: monospace; font-weight: 600; opacity: 0; transform: translateY(5px); transition: 0.2s; }
+        .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; font-family: monospace; font-weight: 600; opacity: 0; transform: translateY(5px); transition: 0.2s; white-space: pre; text-align: center; }
         .bar-group:hover .count-label { opacity: 1; transform: translateY(0); }
         .bar-group.today .count-label { opacity: 1; transform: translateY(0); color: var(--accent); }
 
@@ -191,8 +192,13 @@
         .task-txt { font-size: 1rem; color: var(--text-primary); font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .task-txt.done { text-decoration: line-through; color: var(--text-secondary); opacity: 0.7; }
         
-        .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; align-items: center; }
+        .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; align-items: center; flex-wrap: wrap; }
         .meta-tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-body); color: var(--text-secondary); border: 1px solid var(--border); }
+        
+        /* NEW BADGES */
+        .badge-transferred { background: var(--warning) !important; color: white !important; border-color: var(--warning) !important; }
+        .badge-fresh { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
+
         .p-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
         
         .task-actions { display: flex; gap: 5px; opacity: 0.5; transition: 0.2s; }
@@ -460,7 +466,7 @@
             const incomplete = previousTasks.filter(t => !t.completed);
 
             if (completed.length > 0) {
-                if (!state.archives[state.lastLoginDate]) state.archives[state.lastLoginDate] = { completed: [], missed: [] };
+                if (!state.archives[state.lastLoginDate]) state.archives[state.lastLoginDate] = { completed: [], missed: [], transferred: [] };
                 state.archives[state.lastLoginDate].completed = completed;
             }
 
@@ -479,19 +485,27 @@
     }
 
     function handleRollover(action) {
-        // STRICT HISTORY: Always archive missing tasks for yesterday
         const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
         const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA');
         
-        if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
-        state.archives[yKey].missed = [...pendingRolloverTasks]; 
+        if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [], transferred: [] };
+        
+        // Strict History: Mark as missed/transferred in yesterday's record
+        state.archives[yKey].missed = [...pendingRolloverTasks];
+        if (action === 'transfer') state.archives[yKey].transferred = [...pendingRolloverTasks];
 
         if (action === 'transfer') {
-            // CLONE to today with NEW IDs (Clean Slate)
-            const transferred = pendingRolloverTasks.map(t => ({...t, id: Date.now() + Math.random(), timestamp: new Date().toISOString(), completed: false}));
+            const transferred = pendingRolloverTasks.map(t => ({
+                ...t, 
+                id: Date.now() + Math.random(), 
+                timestamp: new Date().toISOString(), 
+                completed: false, 
+                isTransferred: true, 
+                transferredFrom: yKey 
+            }));
             state.todos = [...transferred, ...state.todos];
             sortTasks(state.todos); 
-            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today (Marked Missed Yesterday)`);
+            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
         } else {
             showToast("Tasks archived as missed");
         }
@@ -512,21 +526,18 @@
             let done = 0, missed = 0, remaining = 0;
 
             if (dateKey === todayKey) {
-                // Today: Pending tasks are "Remaining" (Gray), NOT Missed
                 done = state.todos.filter(t => t.completed && filterFn(t)).length;
                 remaining = state.todos.filter(t => !t.completed && filterFn(t)).length;
-                missed = 0; 
             } else if (state.archives[dateKey]) {
-                // Past: Pending tasks are "Missed" (Red)
                 done = state.archives[dateKey].completed ? state.archives[dateKey].completed.filter(filterFn).length : 0;
                 missed = state.archives[dateKey].missed ? state.archives[dateKey].missed.filter(filterFn).length : 0;
-                remaining = 0;
             }
             
             const total = done + missed + remaining;
             if(total > maxVal) maxVal = total;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
-            dataPoints.push({ label: dayLabel, done, missed, remaining, key: dateKey, isToday: (i===0) });
+            const pct = total > 0 ? Math.round((done/total)*100) : 0;
+            dataPoints.push({ label: dayLabel, done, missed, remaining, key: dateKey, isToday: (i===0), pct });
         }
 
         dataPoints.forEach(d => { 
@@ -538,7 +549,7 @@
 
             container.innerHTML += `
                 <div class="bar-group ${d.isToday ? 'today' : ''}" onclick="openHistoryDetail('${d.key}')">
-                    <div class="count-label">${d.done}/${totalCount}</div>
+                    <div class="count-label">${d.done}/${totalCount}\n${d.pct}%</div>
                     <div class="bar-stack" style="height:${Math.max(hTotal, 6)}%">
                         <div class="bar-segment done" style="height:${pDone}%"></div>
                         <div class="bar-segment missed" style="height:${pMissed}%"></div>
@@ -570,9 +581,55 @@
     function triggerImport() { document.getElementById('importFile').click(); }
     function handleFileLoad(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const data = JSON.parse(e.target.result); if(confirm("Replace current data?")) { state = data; state.activeFilter = 'All'; save(); location.reload(); } } catch(err) { alert("Error: " + err.message); } }; reader.readAsText(file); input.value = ''; }
     function renderAll() { renderFilters(); renderGraph(); renderCategories(); renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly'); const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length; document.getElementById('todayCount').innerText = `${count} tasks`; }
-    function createTaskObj(text, priority, category) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString(), subtasks: [] }; }
-    function addTask(type) { let text, priority, category; if (type === 'daily') { const input = document.getElementById('quick_add_input'); text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; if(!text) return; state.todos.push(createTaskObj(text, priority, category)); sortTasks(state.todos); input.value = ''; } else { const input = document.getElementById('goalInputName'); text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; if(!text) return; state.goals[type].push(createTaskObj(text, priority, category)); sortTasks(state.goals[type]); closeModal('addGoalModal'); } save(); renderAll(); }
-    function renderTasks(type) { const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly'); const container = document.getElementById(listId); container.innerHTML = ''; let source = type==='daily'?state.todos:state.goals[type]; if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter); if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter!=='All'?state.activeFilter.toLowerCase():''} tasks</div>`; return; } source.forEach((t, index) => { const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981'; const subCount = t.subtasks ? t.subtasks.length : 0; const subDone = t.subtasks ? t.subtasks.filter(s=>s.completed).length : 0; const progress = subCount > 0 ? (subDone/subCount)*100 : 0; const draggableAttr = type === 'daily' ? `draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${t.id})" ondragend="handleDragEnd(event)"` : ''; const dragHandle = type === 'daily' ? `<div class="drag-handle">::</div>` : ''; let subHtml = ''; if(t.subtasks && t.subtasks.length > 0) { t.subtasks.forEach((sub, sIdx) => { subHtml += `<div class="sub-item"><div class="sub-check ${sub.completed?'checked':''}" onclick="toggleSubtask('${type}', ${t.id}, ${sIdx})"></div><span style="${sub.completed?'text-decoration:line-through;opacity:0.6':''}">${sub.text}</span></div>`; }); } container.innerHTML += `<div class="task-card ${type==='daily'?'draggable':''}" id="task-${t.id}" ${draggableAttr} data-id="${t.id}"><div class="task-main-row">${dragHandle}<div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div><div class="task-body"><div class="task-txt ${t.completed?'done':''}">${t.text}</div><div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span>${subCount > 0 ? `<span class="meta-tag" style="background:${varCSS('--accent-glow')}">${subDone}/${subCount}</span>` : ''}</div></div><div class="task-actions"><div class="action-icon" onclick="toggleSubInput('${t.id}')" title="Subtasks">📝</div><div class="action-icon" onclick="openReminderModal('${t.text}')" title="Remind">⏰</div><div class="action-icon del" onclick="promptDelete('${type}', ${t.id})">🗑</div></div></div><div class="subtask-area" id="sub-${t.id}">${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}<div id="sublist-${t.id}">${subHtml}</div><input type="text" class="sub-input" placeholder="Add step..." onkeydown="addSubtask(event, '${type}', ${t.id})"></div></div>`; }); }
+    function createTaskObj(text, priority, category, isTransferred = false) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString(), subtasks: [], isTransferred }; }
+    
+    function addTask(type) { 
+        let text, priority, category; 
+        if (type === 'daily') { 
+            const input = document.getElementById('quick_add_input'); 
+            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
+            if(!text) return; 
+            state.todos.push(createTaskObj(text, priority, category)); 
+            sortTasks(state.todos); input.value = ''; 
+            save(); renderAll(); // SAVE IMMEDIATE
+        } else { 
+            const input = document.getElementById('goalInputName'); 
+            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
+            if(!text) return; 
+            state.goals[type].push(createTaskObj(text, priority, category)); 
+            sortTasks(state.goals[type]); closeModal('addGoalModal'); 
+            save(); renderAll(); // SAVE IMMEDIATE
+        } 
+    }
+
+    function renderTasks(type) { 
+        const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly'); 
+        const container = document.getElementById(listId); container.innerHTML = ''; 
+        let source = type==='daily'?state.todos:state.goals[type]; 
+        if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter); 
+        if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter!=='All'?state.activeFilter.toLowerCase():''} tasks</div>`; return; } 
+        
+        source.forEach((t) => { 
+            const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981'; 
+            const subCount = t.subtasks ? t.subtasks.length : 0; 
+            const subDone = t.subtasks ? t.subtasks.filter(s=>s.completed).length : 0; 
+            const progress = subCount > 0 ? (subDone/subCount)*100 : 0; 
+            const draggableAttr = type === 'daily' ? `draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${t.id})" ondragend="handleDragEnd(event)"` : ''; 
+            const dragHandle = type === 'daily' ? `<div class="drag-handle">::</div>` : ''; 
+            
+            let badgeHtml = '';
+            if (type === 'daily') {
+                if (t.isTransferred) badgeHtml = `<span class="meta-tag badge-transferred">Transferred</span>`;
+                else badgeHtml = `<span class="meta-tag badge-fresh">Fresh</span>`;
+            }
+
+            let subHtml = ''; 
+            if(t.subtasks && t.subtasks.length > 0) { t.subtasks.forEach((sub, sIdx) => { subHtml += `<div class="sub-item"><div class="sub-check ${sub.completed?'checked':''}" onclick="toggleSubtask('${type}', ${t.id}, ${sIdx})"></div><span style="${sub.completed?'text-decoration:line-through;opacity:0.6':''}">${sub.text}</span></div>`; }); } 
+            
+            container.innerHTML += `<div class="task-card ${type==='daily'?'draggable':''}" id="task-${t.id}" ${draggableAttr} data-id="${t.id}"><div class="task-main-row">${dragHandle}<div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div><div class="task-body"><div class="task-txt ${t.completed?'done':''}">${t.text}</div><div class="task-meta"><span class="p-dot" style="background:${pColor}"></span><span class="meta-tag">${t.category}</span>${badgeHtml}${subCount > 0 ? `<span class="meta-tag" style="background:${varCSS('--accent-glow')}">${subDone}/${subCount}</span>` : ''}</div></div><div class="task-actions"><div class="action-icon" onclick="toggleSubInput('${t.id}')" title="Subtasks">📝</div><div class="action-icon" onclick="openReminderModal('${t.text}')" title="Remind">⏰</div><div class="action-icon del" onclick="promptDelete('${type}', ${t.id})">🗑</div></div></div><div class="subtask-area" id="sub-${t.id}">${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}<div id="sublist-${t.id}">${subHtml}</div><input type="text" class="sub-input" placeholder="Add step..." onkeydown="addSubtask(event, '${type}', ${t.id})"></div></div>`; 
+        }); 
+    }
+    
     function varCSS(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
     function toggleSubInput(id) { const el = document.getElementById(`sub-${id}`); el.classList.toggle('active'); if(el.classList.contains('active')) el.querySelector('input').focus(); }
     function addSubtask(e, type, parentId) { if(e.key !== 'Enter') return; const txt = e.target.value.trim(); if(!txt) return; const list = type==='daily'?state.todos:state.goals[type]; const task = list.find(t => t.id === parentId); if(task) { if(!task.subtasks) task.subtasks = []; task.subtasks.push({ text: txt, completed: false }); save(); renderAll(); setTimeout(() => { const el = document.getElementById(`sub-${parentId}`); el.classList.add('active'); el.querySelector('input').focus(); }, 50); } }
@@ -596,7 +653,37 @@
     function promptRenameCategory(idx) { const oldName = state.categories[idx]; closeModal('catManagerModal'); showInputModal("Rename Category", oldName, (newName) => { state.categories[idx] = newName; const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; }); updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly); if(currentInput.category === oldName) { currentInput.category = newName; state.config.lastCategory = newName; } if(state.activeFilter === oldName) state.activeFilter = newName; save(); renderAll(); openCatManager(); }); }
     function promptDeleteCategory(idx) { if(state.categories.length <= 1) return alert("Keep at least one."); closeModal('catManagerModal'); showConfirm(`Delete "${state.categories[idx]}"?`, () => { const catName = state.categories[idx]; state.categories.splice(idx, 1); const fallback = state.categories[0]; const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; }); fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly); if(currentInput.category === catName) { currentInput.category = fallback; state.config.lastCategory = fallback; } if(state.activeFilter === catName) state.activeFilter = 'All'; save(); renderAll(); openCatManager(); }); }
     function setGraph(mode) { state.graphMode = mode; document.getElementById('btn-week').classList.toggle('active', mode==='week'); document.getElementById('btn-month').classList.toggle('active', mode==='month'); document.getElementById('chartBars').classList.toggle('month-view', mode==='month'); renderGraph(); }
-    function openHistoryDetail(dateKey) { document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString(); const list = document.getElementById('histContent'); list.innerHTML = ''; let items = []; const todayKey = new Date().toLocaleDateString('en-CA'); const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter); if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category })); else if (state.archives[dateKey]) { if(state.archives[dateKey].completed) state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); } if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>'; else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; }); openModal('historyModal'); }
+    
+    function openHistoryDetail(dateKey) { 
+        document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString(); 
+        const list = document.getElementById('histContent'); list.innerHTML = ''; 
+        let items = []; 
+        const todayKey = new Date().toLocaleDateString('en-CA'); 
+        const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter); 
+        
+        if (dateKey === todayKey) {
+            state.todos.filter(filterFn).forEach(t => items.push({ 
+                text: t.text, 
+                done: t.completed, 
+                cat: t.category, 
+                type: t.isTransferred ? 'Transferred 📥' : 'Fresh' 
+            })); 
+        } else if (state.archives[dateKey]) { 
+            if(state.archives[dateKey].completed) state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category, type: 'Completed' })); 
+            if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => {
+                // Check if this task was transferred out
+                const isTransferredOut = state.archives[dateKey].transferred && state.archives[dateKey].transferred.some(tr => tr.id === t.id);
+                items.push({ text: t.text, done: false, cat: t.category, type: isTransferredOut ? 'Transferred Out 📤' : 'Missed' }); 
+            }); 
+        } 
+        
+        if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>'; 
+        else items.forEach(item => { 
+            list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.type}</div></div></div>`; 
+        }); 
+        openModal('historyModal'); 
+    }
+
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     function showInputModal(title, placeholder, callback) { document.getElementById('catInputTitle').innerText = title; const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder; const btn = document.getElementById('catInputConfirm'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } }; openModal('catInputModal'); setTimeout(() => input.focus(), 100); }
