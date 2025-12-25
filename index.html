@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v34 (Firebase Sync)</title>
+    <title>Task Master v35 (Firebase Fixed)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -503,6 +503,7 @@
         if(syncConfig.firebaseUrl) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
         
         let focusTimer;
+        // FIXED: Now checks for firebaseUrl (not apiKey) so tab switching triggers download
         document.addEventListener("visibilitychange", () => { 
             if (document.visibilityState === "visible") { 
                 checkDayRollover(); 
@@ -712,7 +713,8 @@
                 const remoteTime = remote.updatedAt || 0;
 
                 if(remoteTime > localTime) {
-                    const mergedTodos = [...state.todos, ...remote.todos];
+                    // Safe merging even if remote keys are missing
+                    const mergedTodos = [...state.todos, ...(remote.todos || [])];
                     const uniqueTodosMap = new Map();
                     mergedTodos.forEach(t => { if (!uniqueTodosMap.has(t.id)) uniqueTodosMap.set(t.id, t); else uniqueTodosMap.set(t.id, t); });
                     
@@ -725,7 +727,7 @@
                     state.todos = Array.from(uniqueTodosMap.values());
                     state.goals.weekly = mergeGoals(state.goals.weekly, remote.goals.weekly);
                     state.goals.monthly = mergeGoals(state.goals.monthly, remote.goals.monthly);
-                    state.archives = { ...state.archives, ...remote.archives };
+                    state.archives = { ...state.archives, ...(remote.archives || {}) };
                     state.updatedAt = remote.updatedAt;
 
                     if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
