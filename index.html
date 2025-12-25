@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v28 (Sync Lock)</title>
+    <title>Task Master v29 (Strict History)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -87,7 +87,7 @@
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- GRAPH --- */
+        /* --- GRAPH (ANALYTICS) --- */
         .chart-wrapper {
             position: relative; height: 200px; width: 100%;
             border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
@@ -103,19 +103,20 @@
         
         .bar-stack {
             width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); 
-            display: flex; flex-direction: column-reverse;
+            display: flex; flex-direction: column-reverse; /* Green on bottom */
             overflow: hidden; min-height: 6px; transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
             position: relative;
         }
+        
         .bar-segment { width: 100%; transition: height 0.3s ease; }
         .bar-segment.done { background: var(--success); }
         .bar-segment.missed { background: var(--danger); opacity: 0.8; }
         .bar-segment.remaining { background: var(--border); } 
 
-        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; text-align: center; }
+        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; text-align: center; line-height: 1.2; }
         .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; font-family: monospace; font-weight: 600; opacity: 0; transform: translateY(5px); transition: 0.2s; }
-        .bar-group:hover .count-label, .bar-group.today .count-label { opacity: 1; transform: translateY(0); }
-        .bar-group.today .count-label { color: var(--accent); }
+        .bar-group:hover .count-label { opacity: 1; transform: translateY(0); }
+        .bar-group.today .count-label { opacity: 1; transform: translateY(0); color: var(--accent); }
 
         /* --- STICKY HEADER --- */
         .sticky-wrapper {
@@ -479,17 +480,22 @@
     }
 
     function handleRollover(action) {
+        // ALWAYS archive first to ensure history is kept (Strict Mode)
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+        const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA'); // Fallback if login date missing
+        
+        if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
+        // Save missed tasks to history
+        state.archives[yKey].missed = [...pendingRolloverTasks]; 
+
         if (action === 'transfer') {
-            state.todos = [...pendingRolloverTasks, ...state.todos];
+            // CLONE to today (so they exist in both places)
+            // We use a mapping to reset IDs so they count as "new" tasks for today's logic
+            const transferred = pendingRolloverTasks.map(t => ({...t, id: Date.now() + Math.random(), timestamp: new Date().toISOString()}));
+            state.todos = [...transferred, ...state.todos];
             sortTasks(state.todos); 
             showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
         } else {
-            // Archive logic: Need to calculate "Yesterday" properly based on stored date if available
-            // Simplified here to just yesterday
-            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-            const yKey = yesterday.toLocaleDateString('en-CA');
-            if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
-            state.archives[yKey].missed = pendingRolloverTasks;
             showToast("Tasks archived as missed");
         }
         closeModal('rolloverModal');
@@ -523,15 +529,20 @@
         }
 
         dataPoints.forEach(d => { 
-            const hTotal = ((d.done + d.missed + d.remaining) / maxVal) * 100;
             const totalCount = d.done + d.missed + d.remaining;
-            
+            // Prevent division by zero
+            const hTotal = maxVal > 0 ? (totalCount / maxVal) * 100 : 0;
+            const pDone = totalCount > 0 ? (d.done/totalCount)*100 : 0;
+            const pMissed = totalCount > 0 ? (d.missed/totalCount)*100 : 0;
+            const pRemaining = totalCount > 0 ? (d.remaining/totalCount)*100 : 0;
+
             container.innerHTML += `
                 <div class="bar-group ${d.isToday ? 'today' : ''}" onclick="openHistoryDetail('${d.key}')">
                     <div class="count-label">${d.done}/${totalCount}</div>
                     <div class="bar-stack" style="height:${Math.max(hTotal, 6)}%">
-                        <div class="bar-segment done" style="height:${(d.done/totalCount)*100}%"></div>
-                        <div class="bar-segment ${d.isToday ? 'remaining' : 'missed'}" style="height:${((d.missed+d.remaining)/totalCount)*100}%"></div>
+                        <div class="bar-segment done" style="height:${pDone}%"></div>
+                        <div class="bar-segment missed" style="height:${pMissed}%"></div>
+                        <div class="bar-segment remaining" style="height:${pRemaining}%"></div>
                     </div>
                     <div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div>
                 </div>`;
@@ -548,107 +559,12 @@
         });
     }
 
-    // --- LOCKED SYNC LOGIC (PREVENTS RACE CONDITION) ---
     function save() { state.updatedAt = Date.now(); localStorage.setItem(STABLE_KEY, JSON.stringify(state)); triggerAutoSync(); }
-    
-    function triggerAutoSync() {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        if(!apiKey || !binId || binId.length < 10) return;
-        
-        updateCloudUI('syncing', 'Syncing...');
-        
-        // CLEAR existing timer to restart debounce
-        clearTimeout(syncTimer);
-        
-        // Set new timer
-        syncTimer = setTimeout(() => { 
-            cloudUpload(true); 
-        }, 2000); 
-    }
-
+    function triggerAutoSync() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); if(!apiKey || !binId || binId.length < 10) return; updateCloudUI('syncing', 'Syncing...'); clearTimeout(syncTimer); syncTimer = setTimeout(() => { cloudUpload(true); }, 2000); }
     function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
     function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
-    
-    async function cloudUpload(isSilent) {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        let binId = document.getElementById('syncBinId').value.trim();
-        const statusEl = document.getElementById('syncStatus');
-        if(!apiKey) return;
-        if(!isSilent) statusEl.innerText = "Uploading...";
-        
-        try {
-            if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
-                const res = await req.json();
-                if(req.ok) {
-                    binId = res.metadata.id;
-                    document.getElementById('syncBinId').value = binId;
-                    saveSyncConfig();
-                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`;
-                    updateCloudUI('success', 'Saved');
-                } else throw new Error(res.message);
-            } else {
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
-                if(req.ok) {
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
-                    updateCloudUI('success', 'Saved');
-                } else throw new Error("Update Failed");
-            }
-        } catch(e) {
-            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
-            updateCloudUI('error', 'Error');
-        } finally {
-            syncTimer = null; // UNLOCK download
-        }
-    }
-
-    async function cloudDownload(isSilent) {
-        // LOCK: If upload pending, DO NOT DOWNLOAD (Prevents overwrite)
-        if(syncTimer !== null) { console.log("Upload pending, skipping download"); return; }
-
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        const statusEl = document.getElementById('syncStatus');
-        if(!apiKey || !binId || binId.length < 10) return;
-        if(!isSilent) statusEl.innerText = "Downloading...";
-        if(isSilent) updateCloudUI('syncing', 'Checking...');
-        
-        try {
-            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
-            const res = await req.json();
-            if(req.ok) {
-                const remote = res.record;
-                const localTime = state.updatedAt || 0;
-                const remoteTime = remote.updatedAt || 0;
-
-                if(remoteTime > localTime) {
-                    // MERGE STRATEGY (Safety Net)
-                    // We combine lists instead of overwriting to ensure NO data loss
-                    const mergedTodos = [...state.todos, ...remote.todos];
-                    const uniqueTodos = Array.from(new Map(mergedTodos.map(item => [item.id, item])).values());
-                    
-                    state = remote;
-                    state.todos = uniqueTodos; // Apply merged list
-                    
-                    if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
-                    currentInput.priority = state.config.lastPriority;
-                    currentInput.category = state.config.lastCategory;
-                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
-                    renderAll();
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Merged!</span>';
-                    updateCloudUI('success', 'Updated');
-                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
-                    updateCloudUI('success', 'Synced');
-                } else {
-                    updateCloudUI('success', 'Local > Cloud');
-                }
-            } else throw new Error(res.message);
-        } catch(e) { 
-            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
-            updateCloudUI('error', 'Conn Err');
-        }
-    }
+    async function cloudUpload(isSilent) { const apiKey = document.getElementById('app_token_field').value.trim(); let binId = document.getElementById('syncBinId').value.trim(); const statusEl = document.getElementById('syncStatus'); if(!apiKey) return; if(!isSilent) statusEl.innerText = "Uploading..."; try { if(!binId) { const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) }); const res = await req.json(); if(req.ok) { binId = res.metadata.id; document.getElementById('syncBinId').value = binId; saveSyncConfig(); if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; updateCloudUI('success', 'Saved'); } else throw new Error(res.message); } else { const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) }); if(req.ok) { if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; updateCloudUI('success', 'Saved'); } else throw new Error("Update Failed"); } } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); } }
+    async function cloudDownload(isSilent) { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); const statusEl = document.getElementById('syncStatus'); if(!apiKey || !binId || binId.length < 10) return; if(!isSilent) statusEl.innerText = "Downloading..."; if(isSilent) updateCloudUI('syncing', 'Checking...'); try { const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } }); const res = await req.json(); if(req.ok) { const remote = res.record; const localTime = state.updatedAt || 0; const remoteTime = remote.updatedAt || 0; if(remoteTime > localTime) { state = remote; if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' }; currentInput.priority = state.config.lastPriority; currentInput.category = state.config.lastCategory; localStorage.setItem(STABLE_KEY, JSON.stringify(state)); renderAll(); if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>'; updateCloudUI('success', 'Updated'); } else if (JSON.stringify(remote) === JSON.stringify(state)) { updateCloudUI('success', 'Synced'); } else { updateCloudUI('success', 'Local > Cloud'); } } else throw new Error(res.message); } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); } }
 
     function exportData() { const dataStr = JSON.stringify(state, null, 2); const blob = new Blob([dataStr], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `taskmaster_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
     function triggerImport() { document.getElementById('importFile').click(); }
