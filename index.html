@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v33 (Sync Fixed)</title>
+    <title>Task Master v34 (Firebase Sync)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -387,12 +387,18 @@
         <button class="data-btn" onclick="triggerImport()"><span class="data-icon">📤</span><div><div style="font-size:0.95rem">Restore Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div></div></button>
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
-            <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
-            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
-            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
-            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="sync-label">🔥 Google Firebase Sync (Free & Fast)</span>
+                <a href="https://console.firebase.google.com/" target="_blank" style="font-size:0.7rem; color:var(--accent);">Create DB</a>
+            </div>
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem; margin-top:5px;">Database URL (e.g. https://my-app.firebaseio.com/)</label>
+            <input type="text" class="sync-input" id="firebaseUrl" placeholder="Paste Database URL..." onchange="saveSyncConfig()" autocomplete="off">
+            
+            <div class="modal-btns">
+                <button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button>
+                <button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button>
+            </div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
@@ -485,8 +491,7 @@
         sortTasks(state.todos); sortTasks(state.goals.weekly); sortTasks(state.goals.monthly);
 
         const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
-        if(syncConfig.apiKey) document.getElementById('app_token_field').value = syncConfig.apiKey;
-        if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
+        if(syncConfig.firebaseUrl) document.getElementById('firebaseUrl').value = syncConfig.firebaseUrl;
 
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
@@ -495,17 +500,16 @@
         renderAll();
 
         if("Notification" in window && Notification.permission === "granted") document.getElementById('notifBtn').classList.add('active');
-        if(syncConfig.apiKey && syncConfig.binId) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
+        if(syncConfig.firebaseUrl) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
         
         let focusTimer;
-        // FIXED: Enhanced visibility listener to force save on exit
         document.addEventListener("visibilitychange", () => { 
             if (document.visibilityState === "visible") { 
                 checkDayRollover(); 
                 clearTimeout(focusTimer); 
                 focusTimer = setTimeout(() => { 
                     const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
-                    if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); 
+                    if(syncConfig.firebaseUrl) cloudDownload(true); 
                 }, 1000); 
             } else if (document.visibilityState === "hidden") {
                 if(isDirty) {
@@ -645,59 +649,41 @@
     }
     
     function triggerAutoSync() {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        if(!apiKey || !binId || binId.length < 10) return;
+        const firebaseUrl = document.getElementById('firebaseUrl').value.trim();
+        if(!firebaseUrl) return;
         
         updateCloudUI('syncing', 'Syncing...');
         clearTimeout(syncTimer);
-        // FIXED: Reduced delay to 1s
         syncTimer = setTimeout(() => { cloudUpload(true); }, 1000);
     }
 
     function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
-    function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
+    function saveSyncConfig() { const firebaseUrl = document.getElementById('firebaseUrl').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ firebaseUrl })); if(firebaseUrl) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
     
-    // FIXED: Added keepalive:true to ensure PC syncing survives tab closes
     async function cloudUpload(isSilent) {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        let binId = document.getElementById('syncBinId').value.trim();
+        let firebaseUrl = document.getElementById('firebaseUrl').value.trim();
         const statusEl = document.getElementById('syncStatus');
         
-        if(!apiKey) return;
+        if(!firebaseUrl) return;
+        // Ensure URL ends with slash
+        if(!firebaseUrl.endsWith('/')) firebaseUrl += '/';
+        
         if(!isSilent) statusEl.innerText = "Uploading...";
         
         try {
-            const headers = { 'Content-Type': 'application/json', 'X-Master-Key': apiKey };
+            const req = await fetch(`${firebaseUrl}data.json`, { 
+                method: 'PUT', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(state),
+                keepalive: true 
+            });
             
-            if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', { 
-                    method: 'POST', 
-                    headers: headers, 
-                    body: JSON.stringify(state),
-                    keepalive: true 
-                });
-                const res = await req.json();
-                if(req.ok) { 
-                    binId = res.metadata.id; 
-                    document.getElementById('syncBinId').value = binId; 
-                    saveSyncConfig(); 
-                    isDirty = false; 
-                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; 
-                    updateCloudUI('success', 'Saved'); 
-                } else throw new Error(res.message);
+            if(req.ok) { 
+                isDirty = false; 
+                if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
+                updateCloudUI('success', 'Saved'); 
             } else {
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { 
-                    method: 'PUT', 
-                    headers: headers, 
-                    body: JSON.stringify(state),
-                    keepalive: true 
-                });
-                if(req.ok) { 
-                    isDirty = false; 
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
-                    updateCloudUI('success', 'Saved'); 
-                } else throw new Error("Update Failed");
+                throw new Error("Update Failed");
             }
         } catch(e) { 
             if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; 
@@ -708,18 +694,20 @@
     async function cloudDownload(isSilent) {
         if (isDirty) { cloudUpload(true); return; }
 
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
+        let firebaseUrl = document.getElementById('firebaseUrl').value.trim();
         const statusEl = document.getElementById('syncStatus');
-        if(!apiKey || !binId || binId.length < 10) return;
+        
+        if(!firebaseUrl) return;
+        if(!firebaseUrl.endsWith('/')) firebaseUrl += '/';
+
         if(!isSilent) statusEl.innerText = "Downloading...";
         if(isSilent) updateCloudUI('syncing', 'Checking...');
         
         try {
-            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
-            const res = await req.json();
-            if(req.ok) {
-                const remote = res.record;
+            const req = await fetch(`${firebaseUrl}data.json`);
+            const remote = await req.json();
+            
+            if(req.ok && remote) {
                 const localTime = state.updatedAt || 0;
                 const remoteTime = remote.updatedAt || 0;
 
@@ -753,7 +741,12 @@
                 } else {
                     updateCloudUI('success', 'Local > Cloud');
                 }
-            } else throw new Error(res.message);
+            } else if (!remote) {
+                // DB is empty, maybe first sync
+                 if(!isSilent) statusEl.innerHTML = 'DB Empty';
+            } else {
+                throw new Error("Download Failed");
+            }
         } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); }
     }
 
