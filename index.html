@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v20 (Priority Sort)</title>
+    <title>Task Master v21 (Polished)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -18,7 +18,7 @@
             --border: #e2e8f0;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            --header-bg: rgba(241, 245, 249, 0.95);
+            --header-bg: #f1f5f9; /* Solid background for sticky header */
         }
 
         [data-theme="dark"] {
@@ -29,7 +29,7 @@
             --accent: #818cf8;
             --accent-glow: rgba(129, 140, 248, 0.3);
             --border: #334155;
-            --header-bg: rgba(15, 23, 42, 0.95);
+            --header-bg: #0f172a; /* Solid background for sticky header */
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
@@ -51,7 +51,7 @@
         body.focus-active .settings-btn { display: none !important; }
         
         body.focus-active .container { max-width: 600px; margin-top: 10vh; }
-        body.focus-active .sticky-wrapper { background: transparent; backdrop-filter: none; border: none; }
+        body.focus-active .sticky-wrapper { background: transparent; border: none; box-shadow: none; }
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
 
@@ -104,12 +104,14 @@
         .bar.has-data { background: var(--accent); opacity: 1; box-shadow: 0 0 12px var(--accent-glow); }
         .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
-        /* --- STICKY HEADER --- */
+        /* --- STICKY HEADER FIXED --- */
         .sticky-wrapper {
-            position: sticky; top: 0; z-index: 50; 
-            background-color: var(--header-bg); backdrop-filter: blur(10px);
-            padding-top: 10px; padding-bottom: 15px; margin-bottom: 10px;
-            border-bottom: 1px solid transparent; transition: border-color 0.3s;
+            position: sticky; top: 0; z-index: 100; /* Higher Z-Index */
+            background-color: var(--header-bg); /* Solid background to prevent see-through */
+            padding-top: 15px; padding-bottom: 15px; margin-bottom: 15px;
+            border-bottom: 1px solid var(--border); /* Clear separator */
+            transition: border-color 0.3s, background-color 0.3s;
+            box-shadow: 0 4px 20px -10px rgba(0,0,0,0.1); /* Slight shadow for depth */
         }
         .filter-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; overflow: hidden; padding: 0 2px; }
         .filter-label { font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
@@ -243,6 +245,7 @@
 
         .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
         .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
+        
         .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
         .password-mask { -webkit-text-security: disc; } 
 
@@ -268,6 +271,7 @@
     </style>
 </head>
 <body>
+<input type="password" style="display:none">
 
 <div class="container">
 
@@ -304,10 +308,10 @@
             <div class="filter-scroll" id="filterContainer"></div>
         </div>
         
-        <form class="search-bar" onsubmit="return false;" autocomplete="off">
-            <input type="text" class="main-input" id="taskInput" name="task_entry_field" placeholder="New Task (Press 'N')..." autocomplete="off">
-            <button class="big-add-btn" type="button" onclick="addTask('daily')">ADD</button>
-        </form>
+        <div class="search-bar">
+            <input type="text" class="main-input" id="taskInput" placeholder="New Task (Press 'N')..." autocomplete="off" role="presentation">
+            <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
+        </div>
         
         <div class="chips-row">
             <div class="chip p-low active" onclick="setPriority(this, 'low')">Low</div>
@@ -417,7 +421,7 @@
         if(!state.activeFilter) state.activeFilter = 'All';
         if(!state.updatedAt) state.updatedAt = Date.now();
 
-        // --- PRIORITY SORT ON LOAD (Migration) ---
+        // Priority Sort
         sortTasks(state.todos);
         sortTasks(state.goals.weekly);
         sortTasks(state.goals.monthly);
@@ -462,13 +466,12 @@
 
     /* --- SORTING LOGIC --- */
     function sortTasks(list) {
-        // Sorts by Priority (High > Med > Low)
         const pVal = { high: 3, med: 2, low: 1 };
         list.sort((a, b) => {
             const pA = pVal[a.priority] || 0;
             const pB = pVal[b.priority] || 0;
-            if (pA !== pB) return pB - pA; // Higher priority first
-            return b.id - a.id; // If same priority, newer first (based on ID timestamp)
+            if (pA !== pB) return pB - pA; 
+            return b.id - a.id; 
         });
     }
 
@@ -628,9 +631,7 @@
             const input = document.getElementById('taskInput');
             text = input.value.trim(); priority = currentInput.priority; category = currentInput.category;
             if(!text) return;
-            // 1. Add Task
             state.todos.push(createTaskObj(text, priority, category));
-            // 2. Sort List automatically on add
             sortTasks(state.todos);
             input.value = '';
         } else {
