@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v23 (Sync Fix)</title>
+    <title>Task Master v23 (Rollover)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -107,7 +107,7 @@
         /* --- STICKY HEADER --- */
         .sticky-wrapper {
             position: sticky; top: 0; z-index: 2000;
-            background-color: var(--bg-body); /* Hard opaque BG */
+            background-color: var(--bg-body);
             padding-top: 10px; padding-bottom: 15px; margin-bottom: 10px;
             border-bottom: 1px solid var(--border);
             box-shadow: 0 10px 30px -15px rgba(0,0,0,0.5);
@@ -157,11 +157,6 @@
         .goal-column { background: var(--bg-card); border-radius: 20px; padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); }
 
         .task-list { display: flex; flex-direction: column; gap: 10px; min-height: 50px; }
-        
-        .task-card.draggable { cursor: grab; }
-        .task-card.dragging { opacity: 0.5; border: 2px dashed var(--accent); transform: scale(0.98); }
-        .task-list.drag-over { background: rgba(0,0,0,0.02); border-radius: 12px; }
-
         .task-card {
             background: var(--bg-card); padding: 14px; border-radius: 14px; border: 1px solid var(--border);
             display: flex; flex-direction: column; 
@@ -169,7 +164,6 @@
             transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
         .task-main-row { display: flex; align-items: center; gap: 12px; width: 100%; }
-        
         .goal-column .task-card { background: var(--bg-body); border: 1px solid rgba(0,0,0,0.05); }
         .task-card.deleting { transform: translateX(100%); opacity: 0; }
         
@@ -245,7 +239,6 @@
 
         .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
         .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
-        
         .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
         .password-mask { -webkit-text-security: disc; } 
 
@@ -271,10 +264,7 @@
     </style>
 </head>
 <body>
-<div style="height:0; overflow:hidden; position:absolute;">
-    <input type="text" name="fake_username">
-    <input type="password" name="fake_password">
-</div>
+<div style="height:0; overflow:hidden; position:absolute;"><input type="text" name="fake_username"><input type="password" name="fake_password"></div>
 
 <div class="container">
 
@@ -339,7 +329,16 @@
 
 </div>
 
-<div class="toast-container" id="toastContainer"></div>
+<div class="modal-overlay" id="rolloverModal">
+    <div class="modal-card">
+        <div class="modal-title">Mission Report</div>
+        <div class="modal-subtitle">You have <span id="rolloverCount" style="color:var(--danger); font-weight:bold;">0</span> incomplete tasks from yesterday.</div>
+        <div class="modal-btns">
+            <button class="btn-base btn-confirm" onclick="handleRollover('transfer')">Transfer to Today</button>
+            <button class="btn-base btn-cancel" onclick="handleRollover('archive')">Archive as Missed</button>
+        </div>
+    </div>
+</div>
 
 <div class="modal-overlay" id="settingsModal">
     <div class="modal-card" style="max-height:85vh; overflow-y:auto;">
@@ -350,42 +349,24 @@
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
-            
             <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
             <input type="text" class="sync-input password-mask" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            
             <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
             <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
-            
-            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="syncProcess(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="syncProcess(false)">Force Download</button></div>
+            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
     </div>
 </div>
 
-<div class="modal-overlay" id="reminderModal">
-    <div class="modal-card">
-        <div class="modal-title">Set Reminder</div>
-        <div class="modal-subtitle">When should I remind you?</div>
-        <div class="reminder-grid">
-            <button class="time-btn" onclick="confirmReminder(15)">15m</button>
-            <button class="time-btn" onclick="confirmReminder(30)">30m</button>
-            <button class="time-btn" onclick="confirmReminder(60)">1h</button>
-            <button class="time-btn" onclick="confirmReminder(120)">2h</button>
-        </div>
-        <button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('reminderModal')">Cancel</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="addGoalModal">
-    <div class="modal-card"><div class="modal-title" id="goalModalTitle">Add Goal</div><input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?"><div style="display:flex; gap:10px; margin-bottom:15px;"><select class="modal-input" id="goalInputPriority" style="margin:0"><option value="low">Low</option><option value="med">Med</option><option value="high">High</option></select><select class="modal-input" id="goalInputCat" style="margin:0"></select></div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button><button class="btn-base btn-confirm" id="btnSaveGoal">Save</button></div></div>
-</div>
-
+<div class="modal-overlay" id="reminderModal"><div class="modal-card"><div class="modal-title">Set Reminder</div><div class="modal-subtitle">When should I remind you?</div><div class="reminder-grid"><button class="time-btn" onclick="confirmReminder(15)">15m</button><button class="time-btn" onclick="confirmReminder(30)">30m</button><button class="time-btn" onclick="confirmReminder(60)">1h</button><button class="time-btn" onclick="confirmReminder(120)">2h</button></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('reminderModal')">Cancel</button></div></div>
+<div class="modal-overlay" id="addGoalModal"><div class="modal-card"><div class="modal-title" id="goalModalTitle">Add Goal</div><input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?"><div style="display:flex; gap:10px; margin-bottom:15px;"><select class="modal-input" id="goalInputPriority" style="margin:0"><option value="low">Low</option><option value="med">Med</option><option value="high">High</option></select><select class="modal-input" id="goalInputCat" style="margin:0"></select></div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button><button class="btn-base btn-confirm" id="btnSaveGoal">Save</button></div></div></div>
 <div class="modal-overlay" id="catManagerModal"><div class="modal-card"><div class="modal-title">Categories</div><div class="cat-list-ui" id="catManagerList"></div><button class="btn-base btn-confirm" style="width:100%; margin-bottom:10px;" onclick="promptAddCategory()">+ New Category</button><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('catManagerModal')">Done</button></div></div>
 <div class="modal-overlay" id="catInputModal"><div class="modal-card"><div class="modal-title" id="catInputTitle">New Category</div><input type="text" class="modal-input" id="catInputField" placeholder="Name..."><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('catInputModal')">Cancel</button><button class="btn-base btn-confirm" id="catInputConfirm">Save</button></div></div></div>
 <div class="modal-overlay" id="historyModal"><div class="modal-card"><div class="modal-title" id="histDateTitle">Date</div><div id="histContent" class="history-list"></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('historyModal')">Close</button></div></div>
 <div class="modal-overlay" id="confirmModal"><div class="modal-card"><div class="modal-title">Are you sure?</div><div class="modal-subtitle" id="confirmText">This cannot be undone.</div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('confirmModal')">Cancel</button><button class="btn-base btn-danger" id="confirmActionBtn">Yes, Delete</button></div></div></div>
+<div class="toast-container" id="toastContainer"></div>
 
 <button class="focus-fab" onclick="toggleFocusMode()" title="Focus Mode (F)">🎯</button>
 <button class="theme-fab" onclick="toggleTheme()" title="Toggle Theme">🌓</button>
@@ -399,11 +380,12 @@
     let syncTimer = null;
     let dragSrcEl = null;
     let pendingReminderTask = null;
+    let pendingRolloverTasks = []; // Store tasks for modal
 
     function init() {
         let loaded = false;
         
-        // Load Data
+        // Data Load & Migration
         const saved = localStorage.getItem(STABLE_KEY);
         if(saved) { try { state = JSON.parse(saved); loaded = true; } catch(e){} }
         if (!loaded) {
@@ -413,17 +395,11 @@
             }
         }
 
-        // Defaults & Migration for Sync
-        const ensureSyncProps = (list) => list.forEach(t => { 
-            if(!t.subtasks) t.subtasks = []; 
-            if(!t.modifiedAt) t.modifiedAt = t.id; // Fallback to creation ID
-            if(t.deleted === undefined) t.deleted = false;
-        });
-        
-        if(state.todos) ensureSyncProps(state.todos);
-        if(state.goals && state.goals.weekly) ensureSyncProps(state.goals.weekly);
-        if(state.goals && state.goals.monthly) ensureSyncProps(state.goals.monthly);
-        
+        // Integrity Checks
+        const ensureSubtasks = (list) => list.forEach(t => { if(!t.subtasks) t.subtasks = []; });
+        if(state.todos) ensureSubtasks(state.todos);
+        if(state.goals && state.goals.weekly) ensureSubtasks(state.goals.weekly);
+        if(state.goals && state.goals.monthly) ensureSubtasks(state.goals.monthly);
         if(!state.categories || !state.categories.length) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
@@ -435,7 +411,7 @@
         sortTasks(state.goals.weekly);
         sortTasks(state.goals.monthly);
 
-        // Sync Config
+        // Sync Setup
         const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
         if(syncConfig.apiKey) document.getElementById('syncApiKey').value = syncConfig.apiKey;
         if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
@@ -451,12 +427,19 @@
         if(syncConfig.apiKey && syncConfig.binId) {
             document.getElementById('cloudIndicator').style.display = 'flex';
             updateCloudUI('idle', 'Cloud Active');
-            syncProcess(true); // Auto-sync on load
+            cloudDownload(true);
         }
         
-        // DEBOUNCED FOCUS SYNC
+        // --- VISIBILITY CHECK FOR MIDNIGHT ROLLOVER ---
+        // If app is left open overnight, this checks the date when you tap the screen or tab back in
         let focusTimer;
-        window.onfocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) syncProcess(true); }, 1000); };
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                checkDayRollover(); // Check if date changed
+                clearTimeout(focusTimer);
+                focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); }, 1000);
+            }
+        });
 
         // Inputs
         document.getElementById('quick_add_input').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
@@ -474,7 +457,59 @@
         });
     }
 
-    /* --- LOGIC CORE & SORTING --- */
+    /* --- ROLLOVER LOGIC (New Feature) --- */
+    function checkDayRollover() {
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        // If we have a stored date, and it's NOT today...
+        if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
+            const previousTasks = state.todos;
+            const completed = previousTasks.filter(t => t.completed);
+            const incomplete = previousTasks.filter(t => !t.completed);
+
+            // 1. Archive Completed Immediately
+            if (completed.length > 0) {
+                if (!state.archives[state.lastLoginDate]) state.archives[state.lastLoginDate] = { completed: [], missed: [] };
+                state.archives[state.lastLoginDate].completed = completed;
+            }
+
+            // 2. Handle Incomplete
+            if (incomplete.length > 0) {
+                pendingRolloverTasks = incomplete;
+                state.todos = []; // Clear current view so we don't see yesterday's stuff yet
+                // Show Modal
+                document.getElementById('rolloverCount').innerText = incomplete.length;
+                openModal('rolloverModal');
+            } else {
+                state.todos = []; // Just clean if nothing pending
+            }
+        }
+        
+        // Always update to today so we don't trigger again
+        state.lastLoginDate = todayKey;
+        save();
+        renderAll();
+    }
+
+    function handleRollover(action) {
+        if (action === 'transfer') {
+            // Add back to today's list
+            state.todos = [...pendingRolloverTasks, ...state.todos];
+            sortTasks(state.todos); 
+            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
+        } else {
+            // Archive as missed (using yesterday's date logic approx)
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+            const yKey = yesterday.toLocaleDateString('en-CA');
+            if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
+            state.archives[yKey].missed = pendingRolloverTasks;
+            showToast("Tasks archived to history");
+        }
+        closeModal('rolloverModal');
+        save();
+        renderAll();
+    }
+
+    /* --- SORTING --- */
     function sortTasks(list) {
         const pVal = { high: 3, med: 2, low: 1 };
         list.sort((a, b) => {
@@ -485,11 +520,8 @@
         });
     }
 
-    function save() { 
-        state.updatedAt = Date.now(); 
-        localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
-        triggerAutoSync(); 
-    }
+    /* --- LOGIC CORE --- */
+    function save() { state.updatedAt = Date.now(); localStorage.setItem(STABLE_KEY, JSON.stringify(state)); triggerAutoSync(); }
 
     function triggerAutoSync() {
         const apiKey = document.getElementById('syncApiKey').value.trim();
@@ -497,7 +529,7 @@
         if(!apiKey || !binId || binId.length < 10) return;
         updateCloudUI('syncing', 'Syncing...');
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { syncProcess(true); }, 2000);
+        syncTimer = setTimeout(() => { cloudUpload(true); }, 2000);
     }
 
     function updateCloudUI(status, text) {
@@ -522,104 +554,68 @@
         }
     }
 
-    /* --- NEW SYNC ENGINE: MERGE STRATEGY --- */
-    async function syncProcess(isSilent) {
+    async function cloudUpload(isSilent) {
         const apiKey = document.getElementById('syncApiKey').value.trim();
         let binId = document.getElementById('syncBinId').value.trim();
         const statusEl = document.getElementById('syncStatus');
-        
         if(!apiKey) return;
-        if(!isSilent) statusEl.innerText = "Syncing...";
-        if(isSilent) updateCloudUI('syncing', 'Syncing...');
-
+        if(!isSilent) statusEl.innerText = "Uploading...";
         try {
-            // 1. GET Latest Cloud Data
-            if (!binId) {
-                // If no bin ID, create new one immediately
-                await cloudCreate(apiKey);
-                return;
+            if(!binId) {
+                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                const res = await req.json();
+                if(req.ok) {
+                    binId = res.metadata.id;
+                    document.getElementById('syncBinId').value = binId;
+                    saveSyncConfig();
+                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`;
+                    updateCloudUI('success', 'Saved');
+                } else throw new Error(res.message);
+            } else {
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                if(req.ok) {
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
+                    updateCloudUI('success', 'Saved');
+                } else throw new Error("Update Failed");
             }
-
-            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
-            if(!req.ok) throw new Error("Fetch Failed");
-            
-            const res = await req.json();
-            const remoteState = res.record;
-
-            // 2. MERGE Local and Remote
-            // Merge Todos
-            state.todos = mergeTaskLists(state.todos, remoteState.todos || []);
-            // Merge Weekly
-            state.goals.weekly = mergeTaskLists(state.goals.weekly, (remoteState.goals ? remoteState.goals.weekly : []));
-            // Merge Monthly
-            state.goals.monthly = mergeTaskLists(state.goals.monthly, (remoteState.goals ? remoteState.goals.monthly : []));
-            
-            // Merge Categories (Union)
-            const remoteCats = remoteState.categories || [];
-            remoteCats.forEach(c => { if(!state.categories.includes(c)) state.categories.push(c); });
-
-            // 3. UPDATE UI & Local Storage
-            state.updatedAt = Date.now();
-            localStorage.setItem(STABLE_KEY, JSON.stringify(state));
-            renderAll();
-
-            // 4. PUT Merged Data Back to Cloud
-            const putReq = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, 
-                body: JSON.stringify(state) 
-            });
-
-            if(putReq.ok) {
-                if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
-                updateCloudUI('success', 'Synced');
-            } else throw new Error("Upload Failed");
-
-        } catch(e) {
-            console.error(e);
+        } catch(e) { 
             if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
-            updateCloudUI('error', 'Conn Err');
+            updateCloudUI('error', 'Error');
         }
     }
 
-    async function cloudCreate(apiKey) {
+    async function cloudDownload(isSilent) {
+        const apiKey = document.getElementById('syncApiKey').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        const statusEl = document.getElementById('syncStatus');
+        if(!apiKey || !binId || binId.length < 10) return;
+        if(!isSilent) statusEl.innerText = "Downloading...";
+        if(isSilent) updateCloudUI('syncing', 'Checking...');
         try {
-            const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
             const res = await req.json();
             if(req.ok) {
-                const binId = res.metadata.id;
-                document.getElementById('syncBinId').value = binId;
-                saveSyncConfig();
-                updateCloudUI('success', 'Created');
-            }
-        } catch(e) { alert("Create Failed: " + e.message); }
-    }
+                const remote = res.record;
+                const localTime = state.updatedAt || 0;
+                const remoteTime = remote.updatedAt || 0;
 
-    function mergeTaskLists(localList, remoteList) {
-        const map = new Map();
-        
-        // Add all local tasks
-        localList.forEach(t => map.set(t.id, t));
-        
-        // Merge remote tasks
-        remoteList.forEach(t => {
-            if (map.has(t.id)) {
-                // Conflict! Win by last modified
-                const localT = map.get(t.id);
-                const localMod = localT.modifiedAt || localT.id;
-                const remoteMod = t.modifiedAt || t.id;
-                
-                if (remoteMod > localMod) {
-                    map.set(t.id, t);
+                if(remoteTime > localTime) {
+                    state = remote;
+                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+                    renderAll();
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
+                    updateCloudUI('success', 'Updated');
+                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
+                    updateCloudUI('success', 'Synced');
+                } else {
+                    console.log("Local changes are newer. Skipping download.");
+                    updateCloudUI('success', 'Local > Cloud');
                 }
-            } else {
-                // New task from remote
-                map.set(t.id, t);
-            }
-        });
-        
-        // Convert map back to array
-        return Array.from(map.values());
+            } else throw new Error(res.message);
+        } catch(e) { 
+            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+            updateCloudUI('error', 'Conn Err');
+        }
     }
 
     /* --- APP FUNCTIONS --- */
@@ -644,45 +640,20 @@
         reader.readAsText(file); input.value = '';
     }
 
-    function checkDayRollover() {
-        const todayKey = new Date().toLocaleDateString('en-CA');
-        if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
-            const yesterdayTasks = state.todos;
-            // Only archive non-deleted tasks
-            const activeTasks = yesterdayTasks.filter(t => !t.deleted);
-            
-            const completed = activeTasks.filter(t => t.completed);
-            const missed = activeTasks.filter(t => !t.completed);
-            
-            if (completed.length > 0 || missed.length > 0) state.archives[state.lastLoginDate] = { completed, missed };
-            
-            // Clear daily tasks (but keep the deleted ones in memory for sync if needed? No, flush daily)
-            state.todos = []; 
-        }
-        state.lastLoginDate = todayKey;
-        // Don't call save() here to avoid recursion loop on init, update directly
-        localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
-    }
-
     function renderAll() {
         renderFilters(); renderGraph(); renderCategories();
         renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly');
-        
-        // Count only active (non-deleted) tasks
-        const count = state.todos.filter(t => !t.deleted).length;
+        const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length;
         document.getElementById('todayCount').innerText = `${count} tasks`;
     }
 
     function createTaskObj(text, priority, category) { 
-        const now = Date.now();
         return { 
-            id: now + Math.random(), 
+            id: Date.now() + Math.random(), 
             text, priority, category, 
             completed: false, 
             timestamp: new Date().toISOString(),
-            subtasks: [],
-            modifiedAt: now,
-            deleted: false
+            subtasks: []
         }; 
     }
 
@@ -711,9 +682,6 @@
         const container = document.getElementById(listId);
         container.innerHTML = '';
         let source = type==='daily'?state.todos:state.goals[type];
-        
-        // FILTER: Category AND Non-Deleted
-        source = source.filter(t => !t.deleted);
         if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter);
         
         if(source.length === 0) { 
@@ -725,6 +693,9 @@
             const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
             const subCount = t.subtasks ? t.subtasks.length : 0;
             const subDone = t.subtasks ? t.subtasks.filter(s=>s.completed).length : 0;
+            const progress = subCount > 0 ? (subDone/subCount)*100 : 0;
+            
+            // Draggable only if Daily
             const draggableAttr = type === 'daily' ? `draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${t.id})" ondragend="handleDragEnd(event)"` : '';
             const dragHandle = type === 'daily' ? `<div class="drag-handle">::</div>` : '';
 
@@ -755,7 +726,7 @@
                         </div>
                     </div>
                     <div class="subtask-area" id="sub-${t.id}">
-                        ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${(subDone/subCount)*100}%"></div></div>` : ''}
+                        ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}
                         <div id="sublist-${t.id}">${subHtml}</div>
                         <input type="text" class="sub-input" placeholder="Add step..." onkeydown="addSubtask(event, '${type}', ${t.id})">
                     </div>
@@ -765,37 +736,12 @@
     
     function varCSS(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
 
-    /* --- ACTIONS --- */
-    function toggleTask(type, id) {
-        const originalSource = type==='daily'?state.todos:state.goals[type];
-        const t = originalSource.find(x => x.id === id);
-        if(t) { 
-            t.completed = !t.completed; 
-            t.modifiedAt = Date.now(); // Update timestamp for sync
-            if(t.completed) rainConfetti(); 
-            save(); renderAll(); 
-        }
-    }
-
-    function promptDelete(type, id) { 
-        showConfirm("Delete this item?", () => { 
-            const el = document.getElementById(`task-${id}`); 
-            if(el) el.classList.add('deleting'); 
-            
-            setTimeout(() => { 
-                const list = type === 'daily' ? state.todos : state.goals[type];
-                const t = list.find(x => x.id === id);
-                if(t) {
-                    t.deleted = true; // SOFT DELETE
-                    t.modifiedAt = Date.now();
-                }
-                save(); renderAll(); 
-            }, 300); 
-        }); 
-    }
-
     /* --- SUBTASK LOGIC --- */
-    function toggleSubInput(id) { const el = document.getElementById(`sub-${id}`); el.classList.toggle('active'); if(el.classList.contains('active')) el.querySelector('input').focus(); }
+    function toggleSubInput(id) {
+        const el = document.getElementById(`sub-${id}`);
+        el.classList.toggle('active');
+        if(el.classList.contains('active')) el.querySelector('input').focus();
+    }
     function addSubtask(e, type, parentId) {
         if(e.key !== 'Enter') return;
         const txt = e.target.value.trim();
@@ -805,7 +751,6 @@
         if(task) {
             if(!task.subtasks) task.subtasks = [];
             task.subtasks.push({ text: txt, completed: false });
-            task.modifiedAt = Date.now();
             save(); renderAll();
             setTimeout(() => { const el = document.getElementById(`sub-${parentId}`); el.classList.add('active'); el.querySelector('input').focus(); }, 50);
         }
@@ -815,7 +760,6 @@
         const task = list.find(t => t.id === parentId);
         if(task && task.subtasks[subIdx]) {
             task.subtasks[subIdx].completed = !task.subtasks[subIdx].completed;
-            task.modifiedAt = Date.now();
             save(); renderAll();
             setTimeout(() => document.getElementById(`sub-${parentId}`).classList.add('active'), 0);
         }
@@ -841,16 +785,25 @@
         });
     }
 
-    function openReminderModal(text) { pendingReminderTask = text; openModal('reminderModal'); }
+    function openReminderModal(text) {
+        pendingReminderTask = text;
+        openModal('reminderModal');
+    }
+
     function confirmReminder(minutes) {
         closeModal('reminderModal');
         if (!pendingReminderTask) return;
+        
         const ms = minutes * 60 * 1000;
         showToast(`Reminder set for ${minutes} minutes`);
+        
         setTimeout(() => {
             playNotificationSound();
             if (Notification.permission === "granted") {
-                new Notification("Reminder: " + pendingReminderTask, { body: "Time's up! Get back to work.", icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png' });
+                new Notification("Reminder: " + pendingReminderTask, { 
+                    body: "Time's up! Get back to work.",
+                    icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png' 
+                });
             } else {
                 showToast("⏰ Reminder: " + pendingReminderTask);
             }
@@ -882,6 +835,15 @@
         osc.stop(ctx.currentTime + 0.5);
     }
 
+    /* --- STANDARD ACTIONS --- */
+    function toggleTask(type, id) {
+        const originalSource = type==='daily'?state.todos:state.goals[type];
+        const t = originalSource.find(x => x.id === id);
+        if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); }
+    }
+
+    function promptDelete(type, id) { showConfirm("Delete this item?", () => { const el = document.getElementById(`task-${id}`); if(el) el.classList.add('deleting'); setTimeout(() => { if(type === 'daily') state.todos = state.todos.filter(x => x.id !== id); else state.goals[type] = state.goals[type].filter(x => x.id !== id); save(); renderAll(); }, 300); }); }
+
     function renderFilters() { const container = document.getElementById('filterContainer'); container.innerHTML = ''; const filters = ['All', ...state.categories]; filters.forEach(f => { container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`; }); }
     function setFilter(filter) { state.activeFilter = filter; if(filter !== 'All') currentInput.category = filter; renderAll(); }
 
@@ -906,7 +868,7 @@
         for(let i=limit-1; i>=0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i); const dateKey = d.toLocaleDateString('en-CA'); let completedCount = 0;
             const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed && !t.deleted && filterFn(t)).length;
+            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
             else if (state.archives[dateKey]) completedCount = state.archives[dateKey].completed.filter(filterFn).length;
             if(completedCount > maxVal) maxVal = completedCount;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
@@ -919,7 +881,7 @@
         const list = document.getElementById('histContent'); list.innerHTML = ''; let items = [];
         const todayKey = new Date().toLocaleDateString('en-CA');
         const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-        if (dateKey === todayKey) state.todos.filter(t => !t.deleted && filterFn(t)).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
+        if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
         else if (state.archives[dateKey]) { state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); }
         if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>';
         else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; });
