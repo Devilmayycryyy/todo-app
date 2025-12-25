@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v29 (Strict History)</title>
+    <title>Task Master v29 (Complete)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -42,7 +42,6 @@
             overflow-x: hidden;
         }
 
-        /* FOCUS MODE */
         body.focus-active .header-card, 
         body.focus-active .goals-wrapper,
         body.focus-active .graph-toggle,
@@ -53,7 +52,6 @@
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
 
-        /* --- HEADER --- */
         .header-card {
             background: var(--bg-card); border-radius: 24px; padding: 24px;
             box-shadow: var(--shadow); border: 1px solid var(--border);
@@ -87,7 +85,7 @@
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- GRAPH (ANALYTICS) --- */
+        /* --- GRAPH --- */
         .chart-wrapper {
             position: relative; height: 200px; width: 100%;
             border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
@@ -101,6 +99,7 @@
         .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative; min-width: 30px; cursor: pointer; }
         .month-view .bar-group { flex: 0 0 auto; width: 34px; }
         
+        /* Stacked Bar Logic */
         .bar-stack {
             width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); 
             display: flex; flex-direction: column-reverse; /* Green on bottom */
