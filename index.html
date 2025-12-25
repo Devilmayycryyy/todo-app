@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v30 (Roadmap Complete)</title>
+    <title>Task Master v31 (Sync Stabilized)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -14,7 +14,7 @@
             --accent-glow: rgba(99, 102, 241, 0.3);
             --danger: #ef4444;
             --success: #10b981;
-            --warning: #f59e0b; /* Orange for Transferred */
+            --warning: #f59e0b;
             --border: #e2e8f0;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -42,7 +42,6 @@
             overflow-x: hidden;
         }
 
-        /* FOCUS MODE */
         body.focus-active .header-card, 
         body.focus-active .goals-wrapper,
         body.focus-active .graph-toggle,
@@ -53,7 +52,6 @@
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
 
-        /* --- HEADER --- */
         .header-card {
             background: var(--bg-card); border-radius: 24px; padding: 24px;
             box-shadow: var(--shadow); border: 1px solid var(--border);
@@ -87,7 +85,7 @@
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- GRAPH (ANALYTICS) --- */
+        /* --- GRAPH --- */
         .chart-wrapper {
             position: relative; height: 220px; width: 100%;
             border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
@@ -485,16 +483,15 @@
     }
 
     function handleRollover(action) {
+        // STRICT HISTORY: Always archive missing tasks for yesterday
         const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
         const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA');
         
         if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [], transferred: [] };
-        
-        // Strict History: Mark as missed/transferred in yesterday's record
-        state.archives[yKey].missed = [...pendingRolloverTasks];
-        if (action === 'transfer') state.archives[yKey].transferred = [...pendingRolloverTasks];
+        state.archives[yKey].missed = [...pendingRolloverTasks]; 
 
         if (action === 'transfer') {
+            // CLONE to today with NEW IDs (Clean Slate)
             const transferred = pendingRolloverTasks.map(t => ({
                 ...t, 
                 id: Date.now() + Math.random(), 
@@ -504,6 +501,9 @@
                 transferredFrom: yKey 
             }));
             state.todos = [...transferred, ...state.todos];
+            // Also save transfer record
+            state.archives[yKey].transferred = [...pendingRolloverTasks];
+            
             sortTasks(state.todos); 
             showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
         } else {
@@ -526,11 +526,15 @@
             let done = 0, missed = 0, remaining = 0;
 
             if (dateKey === todayKey) {
+                // Today: Pending tasks are "Remaining" (Gray), NOT Missed
                 done = state.todos.filter(t => t.completed && filterFn(t)).length;
                 remaining = state.todos.filter(t => !t.completed && filterFn(t)).length;
+                missed = 0; 
             } else if (state.archives[dateKey]) {
+                // Past: Pending tasks are "Missed" (Red)
                 done = state.archives[dateKey].completed ? state.archives[dateKey].completed.filter(filterFn).length : 0;
                 missed = state.archives[dateKey].missed ? state.archives[dateKey].missed.filter(filterFn).length : 0;
+                remaining = 0;
             }
             
             const total = done + missed + remaining;
@@ -574,34 +578,72 @@
     function triggerAutoSync() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); if(!apiKey || !binId || binId.length < 10) return; updateCloudUI('syncing', 'Syncing...'); clearTimeout(syncTimer); syncTimer = setTimeout(() => { cloudUpload(true); }, 2000); }
     function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
     function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
-    async function cloudUpload(isSilent) { const apiKey = document.getElementById('app_token_field').value.trim(); let binId = document.getElementById('syncBinId').value.trim(); const statusEl = document.getElementById('syncStatus'); if(!apiKey) return; if(!isSilent) statusEl.innerText = "Uploading..."; try { if(!binId) { const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) }); const res = await req.json(); if(req.ok) { binId = res.metadata.id; document.getElementById('syncBinId').value = binId; saveSyncConfig(); if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; updateCloudUI('success', 'Saved'); } else throw new Error(res.message); } else { const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) }); if(req.ok) { if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; updateCloudUI('success', 'Saved'); } else throw new Error("Update Failed"); } } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); } }
-    async function cloudDownload(isSilent) { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); const statusEl = document.getElementById('syncStatus'); if(!apiKey || !binId || binId.length < 10) return; if(!isSilent) statusEl.innerText = "Downloading..."; if(isSilent) updateCloudUI('syncing', 'Checking...'); try { const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } }); const res = await req.json(); if(req.ok) { const remote = res.record; const localTime = state.updatedAt || 0; const remoteTime = remote.updatedAt || 0; if(remoteTime > localTime) { state = remote; if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' }; currentInput.priority = state.config.lastPriority; currentInput.category = state.config.lastCategory; localStorage.setItem(STABLE_KEY, JSON.stringify(state)); renderAll(); if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>'; updateCloudUI('success', 'Updated'); } else if (JSON.stringify(remote) === JSON.stringify(state)) { updateCloudUI('success', 'Synced'); } else { updateCloudUI('success', 'Local > Cloud'); } } else throw new Error(res.message); } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); } }
+    
+    // SAFE SYNC: Merge Strategy
+    async function cloudUpload(isSilent) {
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        let binId = document.getElementById('syncBinId').value.trim();
+        const statusEl = document.getElementById('syncStatus');
+        if(!apiKey) return;
+        if(!isSilent) statusEl.innerText = "Uploading...";
+        try {
+            if(!binId) {
+                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                const res = await req.json();
+                if(req.ok) { binId = res.metadata.id; document.getElementById('syncBinId').value = binId; saveSyncConfig(); if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; updateCloudUI('success', 'Saved'); } else throw new Error(res.message);
+            } else {
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                if(req.ok) { if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; updateCloudUI('success', 'Saved'); } else throw new Error("Update Failed");
+            }
+        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); }
+    }
+
+    async function cloudDownload(isSilent) {
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        const statusEl = document.getElementById('syncStatus');
+        if(!apiKey || !binId || binId.length < 10) return;
+        if(!isSilent) statusEl.innerText = "Downloading...";
+        if(isSilent) updateCloudUI('syncing', 'Checking...');
+        try {
+            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
+            const res = await req.json();
+            if(req.ok) {
+                const remote = res.record;
+                const localTime = state.updatedAt || 0;
+                const remoteTime = remote.updatedAt || 0;
+                // Merge logic: Combine local and remote todos to prevent loss
+                if(remoteTime > localTime) {
+                    const mergedTodos = [...state.todos, ...remote.todos];
+                    // De-duplicate by ID, preferring remote version if newer
+                    const uniqueTodosMap = new Map();
+                    mergedTodos.forEach(t => uniqueTodosMap.set(t.id, t));
+                    state = remote;
+                    state.todos = Array.from(uniqueTodosMap.values());
+                    
+                    if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
+                    currentInput.priority = state.config.lastPriority;
+                    currentInput.category = state.config.lastCategory;
+                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+                    renderAll();
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Merged!</span>';
+                    updateCloudUI('success', 'Updated');
+                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
+                    updateCloudUI('success', 'Synced');
+                } else {
+                    updateCloudUI('success', 'Local > Cloud');
+                }
+            } else throw new Error(res.message);
+        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); }
+    }
 
     function exportData() { const dataStr = JSON.stringify(state, null, 2); const blob = new Blob([dataStr], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `taskmaster_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
     function triggerImport() { document.getElementById('importFile').click(); }
     function handleFileLoad(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const data = JSON.parse(e.target.result); if(confirm("Replace current data?")) { state = data; state.activeFilter = 'All'; save(); location.reload(); } } catch(err) { alert("Error: " + err.message); } }; reader.readAsText(file); input.value = ''; }
     function renderAll() { renderFilters(); renderGraph(); renderCategories(); renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly'); const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length; document.getElementById('todayCount').innerText = `${count} tasks`; }
-    function createTaskObj(text, priority, category, isTransferred = false) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString(), subtasks: [], isTransferred }; }
+    function createTaskObj(text, priority, category) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString(), subtasks: [] }; }
+    function addTask(type) { let text, priority, category; if (type === 'daily') { const input = document.getElementById('quick_add_input'); text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; if(!text) return; state.todos.push(createTaskObj(text, priority, category)); sortTasks(state.todos); input.value = ''; } else { const input = document.getElementById('goalInputName'); text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; if(!text) return; state.goals[type].push(createTaskObj(text, priority, category)); sortTasks(state.goals[type]); closeModal('addGoalModal'); } save(); renderAll(); }
     
-    function addTask(type) { 
-        let text, priority, category; 
-        if (type === 'daily') { 
-            const input = document.getElementById('quick_add_input'); 
-            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
-            if(!text) return; 
-            state.todos.push(createTaskObj(text, priority, category)); 
-            sortTasks(state.todos); input.value = ''; 
-            save(); renderAll(); // SAVE IMMEDIATE
-        } else { 
-            const input = document.getElementById('goalInputName'); 
-            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
-            if(!text) return; 
-            state.goals[type].push(createTaskObj(text, priority, category)); 
-            sortTasks(state.goals[type]); closeModal('addGoalModal'); 
-            save(); renderAll(); // SAVE IMMEDIATE
-        } 
-    }
-
     function renderTasks(type) { 
         const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly'); 
         const container = document.getElementById(listId); container.innerHTML = ''; 
@@ -671,7 +713,6 @@
         } else if (state.archives[dateKey]) { 
             if(state.archives[dateKey].completed) state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category, type: 'Completed' })); 
             if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => {
-                // Check if this task was transferred out
                 const isTransferredOut = state.archives[dateKey].transferred && state.archives[dateKey].transferred.some(tr => tr.id === t.id);
                 items.push({ text: t.text, done: false, cat: t.category, type: isTransferredOut ? 'Transferred Out 📤' : 'Missed' }); 
             }); 
