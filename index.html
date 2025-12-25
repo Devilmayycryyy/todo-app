@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v33 (Edit & Polish)</title>
+    <title>Task Master v33 (Sync Fixed)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -498,7 +498,22 @@
         if(syncConfig.apiKey && syncConfig.binId) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
         
         let focusTimer;
-        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { checkDayRollover(); clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); }, 1000); } });
+        // FIXED: Enhanced visibility listener to force save on exit
+        document.addEventListener("visibilitychange", () => { 
+            if (document.visibilityState === "visible") { 
+                checkDayRollover(); 
+                clearTimeout(focusTimer); 
+                focusTimer = setTimeout(() => { 
+                    const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
+                    if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); 
+                }, 1000); 
+            } else if (document.visibilityState === "hidden") {
+                if(isDirty) {
+                    clearTimeout(syncTimer);
+                    cloudUpload(true);
+                }
+            }
+        });
 
         document.getElementById('quick_add_input').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
         document.getElementById('catInputField').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('catInputConfirm').click(); });
@@ -636,21 +651,32 @@
         
         updateCloudUI('syncing', 'Syncing...');
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { cloudUpload(true); }, 2000);
+        // FIXED: Reduced delay to 1s
+        syncTimer = setTimeout(() => { cloudUpload(true); }, 1000);
     }
 
     function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
     function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
     
+    // FIXED: Added keepalive:true to ensure PC syncing survives tab closes
     async function cloudUpload(isSilent) {
         const apiKey = document.getElementById('app_token_field').value.trim();
         let binId = document.getElementById('syncBinId').value.trim();
         const statusEl = document.getElementById('syncStatus');
+        
         if(!apiKey) return;
         if(!isSilent) statusEl.innerText = "Uploading...";
+        
         try {
+            const headers = { 'Content-Type': 'application/json', 'X-Master-Key': apiKey };
+            
             if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                const req = await fetch('https://api.jsonbin.io/v3/b', { 
+                    method: 'POST', 
+                    headers: headers, 
+                    body: JSON.stringify(state),
+                    keepalive: true 
+                });
                 const res = await req.json();
                 if(req.ok) { 
                     binId = res.metadata.id; 
@@ -661,14 +687,22 @@
                     updateCloudUI('success', 'Saved'); 
                 } else throw new Error(res.message);
             } else {
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { 
+                    method: 'PUT', 
+                    headers: headers, 
+                    body: JSON.stringify(state),
+                    keepalive: true 
+                });
                 if(req.ok) { 
                     isDirty = false; 
                     if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
                     updateCloudUI('success', 'Saved'); 
                 } else throw new Error("Update Failed");
             }
-        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); }
+        } catch(e) { 
+            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; 
+            updateCloudUI('error', 'Error'); 
+        }
     }
 
     async function cloudDownload(isSilent) {
