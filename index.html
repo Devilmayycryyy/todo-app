@@ -480,21 +480,19 @@
     }
 
     function handleRollover(action) {
-        // ALWAYS archive first to ensure history is kept (Strict Mode)
+        // STRICT HISTORY: Always archive missing tasks for yesterday
         const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-        const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA'); // Fallback if login date missing
+        const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA');
         
         if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [] };
-        // Save missed tasks to history
         state.archives[yKey].missed = [...pendingRolloverTasks]; 
 
         if (action === 'transfer') {
-            // CLONE to today (so they exist in both places)
-            // We use a mapping to reset IDs so they count as "new" tasks for today's logic
-            const transferred = pendingRolloverTasks.map(t => ({...t, id: Date.now() + Math.random(), timestamp: new Date().toISOString()}));
+            // CLONE to today with NEW IDs (Clean Slate)
+            const transferred = pendingRolloverTasks.map(t => ({...t, id: Date.now() + Math.random(), timestamp: new Date().toISOString(), completed: false}));
             state.todos = [...transferred, ...state.todos];
             sortTasks(state.todos); 
-            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
+            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today (Marked Missed Yesterday)`);
         } else {
             showToast("Tasks archived as missed");
         }
@@ -515,11 +513,15 @@
             let done = 0, missed = 0, remaining = 0;
 
             if (dateKey === todayKey) {
+                // Today: Pending tasks are "Remaining" (Gray), NOT Missed
                 done = state.todos.filter(t => t.completed && filterFn(t)).length;
                 remaining = state.todos.filter(t => !t.completed && filterFn(t)).length;
+                missed = 0; 
             } else if (state.archives[dateKey]) {
+                // Past: Pending tasks are "Missed" (Red)
                 done = state.archives[dateKey].completed ? state.archives[dateKey].completed.filter(filterFn).length : 0;
                 missed = state.archives[dateKey].missed ? state.archives[dateKey].missed.filter(filterFn).length : 0;
+                remaining = 0;
             }
             
             const total = done + missed + remaining;
@@ -530,7 +532,6 @@
 
         dataPoints.forEach(d => { 
             const totalCount = d.done + d.missed + d.remaining;
-            // Prevent division by zero
             const hTotal = maxVal > 0 ? (totalCount / maxVal) * 100 : 0;
             const pDone = totalCount > 0 ? (d.done/totalCount)*100 : 0;
             const pMissed = totalCount > 0 ? (d.missed/totalCount)*100 : 0;
