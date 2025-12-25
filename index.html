@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v36 (Sync Logic Fixed)</title>
+    <title>Task Master v37 (Cache Fix)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -705,7 +705,8 @@
         if(isSilent) updateCloudUI('syncing', 'Checking...');
         
         try {
-            const req = await fetch(`${firebaseUrl}data.json`);
+            // FIXED: Added cache busting to force fresh data from server
+            const req = await fetch(`${firebaseUrl}data.json?t=${Date.now()}`);
             const remote = await req.json();
             
             if(req.ok && remote) {
