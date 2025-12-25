@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v22 (Final Fix)</title>
+    <title>Task Master v23 (Sync Fix)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -18,6 +18,7 @@
             --border: #e2e8f0;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --header-bg: #f1f5f9;
         }
 
         [data-theme="dark"] {
@@ -28,6 +29,7 @@
             --accent: #818cf8;
             --accent-glow: rgba(129, 140, 248, 0.3);
             --border: #334155;
+            --header-bg: #0f172a;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
@@ -49,12 +51,7 @@
         body.focus-active .settings-btn { display: none !important; }
         
         body.focus-active .container { max-width: 600px; margin-top: 10vh; }
-        body.focus-active .sticky-wrapper { 
-            position: relative; top: 0; /* Unstick in focus mode */
-            background: transparent !important; 
-            box-shadow: none !important; 
-            border: none;
-        }
+        body.focus-active .sticky-wrapper { position: relative; top: 0; background: transparent !important; box-shadow: none !important; border: none; }
 
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
 
@@ -107,13 +104,13 @@
         .bar.has-data { background: var(--accent); opacity: 1; box-shadow: 0 0 12px var(--accent-glow); }
         .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; font-weight: 600; text-align: center; }
 
-        /* --- STICKY HEADER (FIXED) --- */
+        /* --- STICKY HEADER --- */
         .sticky-wrapper {
             position: sticky; top: 0; z-index: 2000;
-            background-color: var(--bg-body); /* HARD OPAQUE BACKGROUND */
+            background-color: var(--bg-body); /* Hard opaque BG */
             padding-top: 10px; padding-bottom: 15px; margin-bottom: 10px;
             border-bottom: 1px solid var(--border);
-            box-shadow: 0 10px 30px -15px rgba(0,0,0,0.5); /* Strong shadow to hide overlap */
+            box-shadow: 0 10px 30px -15px rgba(0,0,0,0.5);
             transition: background-color 0.3s;
         }
         .filter-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; overflow: hidden; padding: 0 2px; }
@@ -360,7 +357,7 @@
             <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
             <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
             
-            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
+            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="syncProcess(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="syncProcess(false)">Force Download</button></div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
@@ -416,11 +413,17 @@
             }
         }
 
-        // Defaults
-        const ensureSubtasks = (list) => list.forEach(t => { if(!t.subtasks) t.subtasks = []; });
-        if(state.todos) ensureSubtasks(state.todos);
-        if(state.goals && state.goals.weekly) ensureSubtasks(state.goals.weekly);
-        if(state.goals && state.goals.monthly) ensureSubtasks(state.goals.monthly);
+        // Defaults & Migration for Sync
+        const ensureSyncProps = (list) => list.forEach(t => { 
+            if(!t.subtasks) t.subtasks = []; 
+            if(!t.modifiedAt) t.modifiedAt = t.id; // Fallback to creation ID
+            if(t.deleted === undefined) t.deleted = false;
+        });
+        
+        if(state.todos) ensureSyncProps(state.todos);
+        if(state.goals && state.goals.weekly) ensureSyncProps(state.goals.weekly);
+        if(state.goals && state.goals.monthly) ensureSyncProps(state.goals.monthly);
+        
         if(!state.categories || !state.categories.length) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
@@ -448,11 +451,12 @@
         if(syncConfig.apiKey && syncConfig.binId) {
             document.getElementById('cloudIndicator').style.display = 'flex';
             updateCloudUI('idle', 'Cloud Active');
-            cloudDownload(true);
+            syncProcess(true); // Auto-sync on load
         }
         
+        // DEBOUNCED FOCUS SYNC
         let focusTimer;
-        window.onfocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); }, 1000); };
+        window.onfocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) syncProcess(true); }, 1000); };
 
         // Inputs
         document.getElementById('quick_add_input').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
@@ -470,7 +474,7 @@
         });
     }
 
-    /* --- SORTING LOGIC --- */
+    /* --- LOGIC CORE & SORTING --- */
     function sortTasks(list) {
         const pVal = { high: 3, med: 2, low: 1 };
         list.sort((a, b) => {
@@ -481,8 +485,11 @@
         });
     }
 
-    /* --- LOGIC CORE --- */
-    function save() { state.updatedAt = Date.now(); localStorage.setItem(STABLE_KEY, JSON.stringify(state)); triggerAutoSync(); }
+    function save() { 
+        state.updatedAt = Date.now(); 
+        localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
+        triggerAutoSync(); 
+    }
 
     function triggerAutoSync() {
         const apiKey = document.getElementById('syncApiKey').value.trim();
@@ -490,7 +497,7 @@
         if(!apiKey || !binId || binId.length < 10) return;
         updateCloudUI('syncing', 'Syncing...');
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { cloudUpload(true); }, 2000);
+        syncTimer = setTimeout(() => { syncProcess(true); }, 2000);
     }
 
     function updateCloudUI(status, text) {
@@ -515,68 +522,104 @@
         }
     }
 
-    async function cloudUpload(isSilent) {
+    /* --- NEW SYNC ENGINE: MERGE STRATEGY --- */
+    async function syncProcess(isSilent) {
         const apiKey = document.getElementById('syncApiKey').value.trim();
         let binId = document.getElementById('syncBinId').value.trim();
         const statusEl = document.getElementById('syncStatus');
+        
         if(!apiKey) return;
-        if(!isSilent) statusEl.innerText = "Uploading...";
+        if(!isSilent) statusEl.innerText = "Syncing...";
+        if(isSilent) updateCloudUI('syncing', 'Syncing...');
+
         try {
-            if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
-                const res = await req.json();
-                if(req.ok) {
-                    binId = res.metadata.id;
-                    document.getElementById('syncBinId').value = binId;
-                    saveSyncConfig();
-                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`;
-                    updateCloudUI('success', 'Saved');
-                } else throw new Error(res.message);
-            } else {
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
-                if(req.ok) {
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
-                    updateCloudUI('success', 'Saved');
-                } else throw new Error("Update Failed");
+            // 1. GET Latest Cloud Data
+            if (!binId) {
+                // If no bin ID, create new one immediately
+                await cloudCreate(apiKey);
+                return;
             }
-        } catch(e) { 
-            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
-            updateCloudUI('error', 'Error');
-        }
-    }
 
-    async function cloudDownload(isSilent) {
-        const apiKey = document.getElementById('syncApiKey').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        const statusEl = document.getElementById('syncStatus');
-        if(!apiKey || !binId || binId.length < 10) return;
-        if(!isSilent) statusEl.innerText = "Downloading...";
-        if(isSilent) updateCloudUI('syncing', 'Checking...');
-        try {
             const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
+            if(!req.ok) throw new Error("Fetch Failed");
+            
             const res = await req.json();
-            if(req.ok) {
-                const remote = res.record;
-                const localTime = state.updatedAt || 0;
-                const remoteTime = remote.updatedAt || 0;
+            const remoteState = res.record;
 
-                if(remoteTime > localTime) {
-                    state = remote;
-                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
-                    renderAll();
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
-                    updateCloudUI('success', 'Updated');
-                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
-                    updateCloudUI('success', 'Synced');
-                } else {
-                    console.log("Local changes are newer. Skipping download.");
-                    updateCloudUI('success', 'Local > Cloud');
-                }
-            } else throw new Error(res.message);
-        } catch(e) { 
+            // 2. MERGE Local and Remote
+            // Merge Todos
+            state.todos = mergeTaskLists(state.todos, remoteState.todos || []);
+            // Merge Weekly
+            state.goals.weekly = mergeTaskLists(state.goals.weekly, (remoteState.goals ? remoteState.goals.weekly : []));
+            // Merge Monthly
+            state.goals.monthly = mergeTaskLists(state.goals.monthly, (remoteState.goals ? remoteState.goals.monthly : []));
+            
+            // Merge Categories (Union)
+            const remoteCats = remoteState.categories || [];
+            remoteCats.forEach(c => { if(!state.categories.includes(c)) state.categories.push(c); });
+
+            // 3. UPDATE UI & Local Storage
+            state.updatedAt = Date.now();
+            localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+            renderAll();
+
+            // 4. PUT Merged Data Back to Cloud
+            const putReq = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { 
+                method: 'PUT', 
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, 
+                body: JSON.stringify(state) 
+            });
+
+            if(putReq.ok) {
+                if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>';
+                updateCloudUI('success', 'Synced');
+            } else throw new Error("Upload Failed");
+
+        } catch(e) {
+            console.error(e);
             if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
             updateCloudUI('error', 'Conn Err');
         }
+    }
+
+    async function cloudCreate(apiKey) {
+        try {
+            const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+            const res = await req.json();
+            if(req.ok) {
+                const binId = res.metadata.id;
+                document.getElementById('syncBinId').value = binId;
+                saveSyncConfig();
+                updateCloudUI('success', 'Created');
+            }
+        } catch(e) { alert("Create Failed: " + e.message); }
+    }
+
+    function mergeTaskLists(localList, remoteList) {
+        const map = new Map();
+        
+        // Add all local tasks
+        localList.forEach(t => map.set(t.id, t));
+        
+        // Merge remote tasks
+        remoteList.forEach(t => {
+            if (map.has(t.id)) {
+                // Conflict! Win by last modified
+                const localT = map.get(t.id);
+                const localMod = localT.modifiedAt || localT.id;
+                const remoteMod = t.modifiedAt || t.id;
+                
+                if (remoteMod > localMod) {
+                    map.set(t.id, t);
+                }
+            } else {
+                // New task from remote
+                map.set(t.id, t);
+            }
+        });
+        
+        // Convert map back to array
+        return Array.from(map.values());
     }
 
     /* --- APP FUNCTIONS --- */
@@ -605,29 +648,41 @@
         const todayKey = new Date().toLocaleDateString('en-CA');
         if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
             const yesterdayTasks = state.todos;
-            const completed = yesterdayTasks.filter(t => t.completed);
-            const missed = yesterdayTasks.filter(t => !t.completed);
+            // Only archive non-deleted tasks
+            const activeTasks = yesterdayTasks.filter(t => !t.deleted);
+            
+            const completed = activeTasks.filter(t => t.completed);
+            const missed = activeTasks.filter(t => !t.completed);
+            
             if (completed.length > 0 || missed.length > 0) state.archives[state.lastLoginDate] = { completed, missed };
+            
+            // Clear daily tasks (but keep the deleted ones in memory for sync if needed? No, flush daily)
             state.todos = []; 
         }
         state.lastLoginDate = todayKey;
-        save();
+        // Don't call save() here to avoid recursion loop on init, update directly
+        localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
     }
 
     function renderAll() {
         renderFilters(); renderGraph(); renderCategories();
         renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly');
-        const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length;
+        
+        // Count only active (non-deleted) tasks
+        const count = state.todos.filter(t => !t.deleted).length;
         document.getElementById('todayCount').innerText = `${count} tasks`;
     }
 
     function createTaskObj(text, priority, category) { 
+        const now = Date.now();
         return { 
-            id: Date.now() + Math.random(), 
+            id: now + Math.random(), 
             text, priority, category, 
             completed: false, 
             timestamp: new Date().toISOString(),
-            subtasks: []
+            subtasks: [],
+            modifiedAt: now,
+            deleted: false
         }; 
     }
 
@@ -656,6 +711,9 @@
         const container = document.getElementById(listId);
         container.innerHTML = '';
         let source = type==='daily'?state.todos:state.goals[type];
+        
+        // FILTER: Category AND Non-Deleted
+        source = source.filter(t => !t.deleted);
         if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter);
         
         if(source.length === 0) { 
@@ -667,7 +725,6 @@
             const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
             const subCount = t.subtasks ? t.subtasks.length : 0;
             const subDone = t.subtasks ? t.subtasks.filter(s=>s.completed).length : 0;
-            const progress = subCount > 0 ? (subDone/subCount)*100 : 0;
             const draggableAttr = type === 'daily' ? `draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${t.id})" ondragend="handleDragEnd(event)"` : '';
             const dragHandle = type === 'daily' ? `<div class="drag-handle">::</div>` : '';
 
@@ -698,7 +755,7 @@
                         </div>
                     </div>
                     <div class="subtask-area" id="sub-${t.id}">
-                        ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}
+                        ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${(subDone/subCount)*100}%"></div></div>` : ''}
                         <div id="sublist-${t.id}">${subHtml}</div>
                         <input type="text" class="sub-input" placeholder="Add step..." onkeydown="addSubtask(event, '${type}', ${t.id})">
                     </div>
@@ -708,12 +765,37 @@
     
     function varCSS(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
 
-    /* --- SUBTASK LOGIC --- */
-    function toggleSubInput(id) {
-        const el = document.getElementById(`sub-${id}`);
-        el.classList.toggle('active');
-        if(el.classList.contains('active')) el.querySelector('input').focus();
+    /* --- ACTIONS --- */
+    function toggleTask(type, id) {
+        const originalSource = type==='daily'?state.todos:state.goals[type];
+        const t = originalSource.find(x => x.id === id);
+        if(t) { 
+            t.completed = !t.completed; 
+            t.modifiedAt = Date.now(); // Update timestamp for sync
+            if(t.completed) rainConfetti(); 
+            save(); renderAll(); 
+        }
     }
+
+    function promptDelete(type, id) { 
+        showConfirm("Delete this item?", () => { 
+            const el = document.getElementById(`task-${id}`); 
+            if(el) el.classList.add('deleting'); 
+            
+            setTimeout(() => { 
+                const list = type === 'daily' ? state.todos : state.goals[type];
+                const t = list.find(x => x.id === id);
+                if(t) {
+                    t.deleted = true; // SOFT DELETE
+                    t.modifiedAt = Date.now();
+                }
+                save(); renderAll(); 
+            }, 300); 
+        }); 
+    }
+
+    /* --- SUBTASK LOGIC --- */
+    function toggleSubInput(id) { const el = document.getElementById(`sub-${id}`); el.classList.toggle('active'); if(el.classList.contains('active')) el.querySelector('input').focus(); }
     function addSubtask(e, type, parentId) {
         if(e.key !== 'Enter') return;
         const txt = e.target.value.trim();
@@ -723,6 +805,7 @@
         if(task) {
             if(!task.subtasks) task.subtasks = [];
             task.subtasks.push({ text: txt, completed: false });
+            task.modifiedAt = Date.now();
             save(); renderAll();
             setTimeout(() => { const el = document.getElementById(`sub-${parentId}`); el.classList.add('active'); el.querySelector('input').focus(); }, 50);
         }
@@ -732,6 +815,7 @@
         const task = list.find(t => t.id === parentId);
         if(task && task.subtasks[subIdx]) {
             task.subtasks[subIdx].completed = !task.subtasks[subIdx].completed;
+            task.modifiedAt = Date.now();
             save(); renderAll();
             setTimeout(() => document.getElementById(`sub-${parentId}`).classList.add('active'), 0);
         }
@@ -757,25 +841,16 @@
         });
     }
 
-    function openReminderModal(text) {
-        pendingReminderTask = text;
-        openModal('reminderModal');
-    }
-
+    function openReminderModal(text) { pendingReminderTask = text; openModal('reminderModal'); }
     function confirmReminder(minutes) {
         closeModal('reminderModal');
         if (!pendingReminderTask) return;
-        
         const ms = minutes * 60 * 1000;
         showToast(`Reminder set for ${minutes} minutes`);
-        
         setTimeout(() => {
             playNotificationSound();
             if (Notification.permission === "granted") {
-                new Notification("Reminder: " + pendingReminderTask, { 
-                    body: "Time's up! Get back to work.",
-                    icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png' 
-                });
+                new Notification("Reminder: " + pendingReminderTask, { body: "Time's up! Get back to work.", icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png' });
             } else {
                 showToast("⏰ Reminder: " + pendingReminderTask);
             }
@@ -807,15 +882,6 @@
         osc.stop(ctx.currentTime + 0.5);
     }
 
-    /* --- STANDARD ACTIONS --- */
-    function toggleTask(type, id) {
-        const originalSource = type==='daily'?state.todos:state.goals[type];
-        const t = originalSource.find(x => x.id === id);
-        if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); }
-    }
-
-    function promptDelete(type, id) { showConfirm("Delete this item?", () => { const el = document.getElementById(`task-${id}`); if(el) el.classList.add('deleting'); setTimeout(() => { if(type === 'daily') state.todos = state.todos.filter(x => x.id !== id); else state.goals[type] = state.goals[type].filter(x => x.id !== id); save(); renderAll(); }, 300); }); }
-
     function renderFilters() { const container = document.getElementById('filterContainer'); container.innerHTML = ''; const filters = ['All', ...state.categories]; filters.forEach(f => { container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`; }); }
     function setFilter(filter) { state.activeFilter = filter; if(filter !== 'All') currentInput.category = filter; renderAll(); }
 
@@ -840,7 +906,7 @@
         for(let i=limit-1; i>=0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i); const dateKey = d.toLocaleDateString('en-CA'); let completedCount = 0;
             const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed && filterFn(t)).length;
+            if (dateKey === todayKey) completedCount = state.todos.filter(t => t.completed && !t.deleted && filterFn(t)).length;
             else if (state.archives[dateKey]) completedCount = state.archives[dateKey].completed.filter(filterFn).length;
             if(completedCount > maxVal) maxVal = completedCount;
             const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
@@ -853,7 +919,7 @@
         const list = document.getElementById('histContent'); list.innerHTML = ''; let items = [];
         const todayKey = new Date().toLocaleDateString('en-CA');
         const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
-        if (dateKey === todayKey) state.todos.filter(filterFn).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
+        if (dateKey === todayKey) state.todos.filter(t => !t.deleted && filterFn(t)).forEach(t => items.push({ text: t.text, done: t.completed, cat: t.category }));
         else if (state.archives[dateKey]) { state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category })); state.archives[dateKey].missed.filter(filterFn).forEach(t => items.push({ text: t.text, done: false, cat: t.category })); }
         if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>';
         else items.forEach(item => { list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.done ? 'Completed' : 'Missed'}</div></div></div>`; });
