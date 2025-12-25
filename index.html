@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v18 (Stable)</title>
+    <title>Task Master v20 (Priority Sort)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -244,7 +244,8 @@
         .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
         .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
         .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
-        
+        .password-mask { -webkit-text-security: disc; } 
+
         .cat-list-ui { text-align: left; max-height: 250px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
         .cat-item-ui { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: 10px; align-items: center; border: 1px solid var(--border); }
         .cat-actions { display: flex; gap: 8px; }
@@ -302,10 +303,12 @@
             <div class="filter-label">Filter:</div>
             <div class="filter-scroll" id="filterContainer"></div>
         </div>
-        <div class="search-bar">
-            <input type="text" class="main-input" id="taskInput" placeholder="New Task (Press 'N')..." autocomplete="off">
-            <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
-        </div>
+        
+        <form class="search-bar" onsubmit="return false;" autocomplete="off">
+            <input type="text" class="main-input" id="taskInput" name="task_entry_field" placeholder="New Task (Press 'N')..." autocomplete="off">
+            <button class="big-add-btn" type="button" onclick="addTask('daily')">ADD</button>
+        </form>
+        
         <div class="chips-row">
             <div class="chip p-low active" onclick="setPriority(this, 'low')">Low</div>
             <div class="chip p-med" onclick="setPriority(this, 'med')">Medium</div>
@@ -340,8 +343,13 @@
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label><input type="password" class="sync-input" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()">
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label><input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
+            <input type="text" class="sync-input password-mask" id="syncApiKey" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
+            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
+            
             <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
@@ -376,7 +384,9 @@
 <button class="theme-fab" onclick="toggleTheme()" title="Toggle Theme">🌓</button>
 
 <script>
-    // State now includes 'updatedAt' for conflict resolution
+    const STABLE_KEY = 'tm_universal_store';
+    const LEGACY_KEYS = ['tm_v18_data', 'tm_v16_data', 'tm_v15_data', 'tm_v11_data'];
+
     let state = { todos: [], goals: { weekly: [], monthly: [] }, archives: {}, categories: ['Personal', 'Work', 'Health'], theme: 'light', graphMode: 'week', activeFilter: 'All', lastLoginDate: null, updatedAt: 0 };
     let currentInput = { priority: 'low', category: 'Personal' };
     let syncTimer = null;
@@ -384,19 +394,35 @@
     let pendingReminderTask = null;
 
     function init() {
-        const saved = localStorage.getItem('tm_v18_data'); // Updated key for v18
-        if(saved) try { state = JSON.parse(saved); } catch(e){}
+        let loaded = false;
+        
+        // Load Data
+        const saved = localStorage.getItem(STABLE_KEY);
+        if(saved) { try { state = JSON.parse(saved); loaded = true; } catch(e){} }
+        if (!loaded) {
+            for (const key of LEGACY_KEYS) {
+                const legacy = localStorage.getItem(key);
+                if (legacy) { try { state = JSON.parse(legacy); loaded = true; save(); break; } catch(e){} }
+            }
+        }
+
+        // Defaults
         const ensureSubtasks = (list) => list.forEach(t => { if(!t.subtasks) t.subtasks = []; });
         if(state.todos) ensureSubtasks(state.todos);
         if(state.goals && state.goals.weekly) ensureSubtasks(state.goals.weekly);
         if(state.goals && state.goals.monthly) ensureSubtasks(state.goals.monthly);
-        
         if(!state.categories || !state.categories.length) state.categories = ['Personal'];
         if(!state.goals) state.goals = { weekly: [], monthly: [] };
         if(!state.archives) state.archives = {};
         if(!state.activeFilter) state.activeFilter = 'All';
         if(!state.updatedAt) state.updatedAt = Date.now();
 
+        // --- PRIORITY SORT ON LOAD (Migration) ---
+        sortTasks(state.todos);
+        sortTasks(state.goals.weekly);
+        sortTasks(state.goals.monthly);
+
+        // Sync Config
         const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
         if(syncConfig.apiKey) document.getElementById('syncApiKey').value = syncConfig.apiKey;
         if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
@@ -407,26 +433,16 @@
         checkDayRollover();
         renderAll();
 
-        if("Notification" in window && Notification.permission === "granted") {
-            document.getElementById('notifBtn').classList.add('active');
-        }
+        if("Notification" in window && Notification.permission === "granted") document.getElementById('notifBtn').classList.add('active');
 
-        // Init Cloud
         if(syncConfig.apiKey && syncConfig.binId) {
             document.getElementById('cloudIndicator').style.display = 'flex';
             updateCloudUI('idle', 'Cloud Active');
             cloudDownload(true);
         }
         
-        // --- FIXED: DEBOUNCED FOCUS HANDLER ---
-        // Prevents aggressive downloading when keyboard closes on mobile
         let focusTimer;
-        window.onfocus = () => { 
-            clearTimeout(focusTimer);
-            focusTimer = setTimeout(() => {
-                if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); 
-            }, 1000); 
-        };
+        window.onfocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); }, 1000); };
 
         // Inputs
         document.getElementById('taskInput').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
@@ -444,12 +460,20 @@
         });
     }
 
-    /* --- LOGIC CORE --- */
-    function save() { 
-        state.updatedAt = Date.now(); // Update timestamp on every save
-        localStorage.setItem('tm_v18_data', JSON.stringify(state)); 
-        triggerAutoSync(); 
+    /* --- SORTING LOGIC --- */
+    function sortTasks(list) {
+        // Sorts by Priority (High > Med > Low)
+        const pVal = { high: 3, med: 2, low: 1 };
+        list.sort((a, b) => {
+            const pA = pVal[a.priority] || 0;
+            const pB = pVal[b.priority] || 0;
+            if (pA !== pB) return pB - pA; // Higher priority first
+            return b.id - a.id; // If same priority, newer first (based on ID timestamp)
+        });
     }
+
+    /* --- LOGIC CORE --- */
+    function save() { state.updatedAt = Date.now(); localStorage.setItem(STABLE_KEY, JSON.stringify(state)); triggerAutoSync(); }
 
     function triggerAutoSync() {
         const apiKey = document.getElementById('syncApiKey').value.trim();
@@ -524,21 +548,18 @@
             const res = await req.json();
             if(req.ok) {
                 const remote = res.record;
-                // --- FIXED: TIMESTAMP CONFLICT RESOLUTION ---
-                // Only overwrite local data if remote is NEWER and DIFFERENT
                 const localTime = state.updatedAt || 0;
                 const remoteTime = remote.updatedAt || 0;
 
                 if(remoteTime > localTime) {
                     state = remote;
-                    localStorage.setItem('tm_v18_data', JSON.stringify(state));
+                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
                     renderAll();
                     if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Loaded!</span>';
                     updateCloudUI('success', 'Updated');
                 } else if (JSON.stringify(remote) === JSON.stringify(state)) {
                     updateCloudUI('success', 'Synced');
                 } else {
-                    // Local is newer, do nothing (let the upload happen later)
                     console.log("Local changes are newer. Skipping download.");
                     updateCloudUI('success', 'Local > Cloud');
                 }
@@ -607,13 +628,17 @@
             const input = document.getElementById('taskInput');
             text = input.value.trim(); priority = currentInput.priority; category = currentInput.category;
             if(!text) return;
-            state.todos.unshift(createTaskObj(text, priority, category));
+            // 1. Add Task
+            state.todos.push(createTaskObj(text, priority, category));
+            // 2. Sort List automatically on add
+            sortTasks(state.todos);
             input.value = '';
         } else {
             const input = document.getElementById('goalInputName');
             text = input.value.trim(); priority = document.getElementById('goalInputPriority').value; category = document.getElementById('goalInputCat').value;
             if(!text) return;
             state.goals[type].push(createTaskObj(text, priority, category));
+            sortTasks(state.goals[type]);
             closeModal('addGoalModal');
         }
         save(); renderAll();
