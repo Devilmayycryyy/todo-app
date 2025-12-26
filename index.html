@@ -3,141 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v36 (Stable Connection)</title>
+    <title>Task Master v33 (Edit & Polish)</title>
     <style>
         :root {
-            --bg-body: #f1f5f9; --bg-card: #ffffff; --text-primary: #1e293b; --text-secondary: #64748b;
-            --accent: #6366f1; --accent-glow: rgba(99, 102, 241, 0.3); --danger: #ef4444; --success: #10b981;
-            --warning: #f59e0b; --border: #e2e8f0; --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #e2e8f0;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
-        [data-theme="dark"] {
-            --bg-body: #0f172a; --bg-card: #1e293b; --text-primary: #f8fafc; --text-secondary: #94a3b8;
-            --accent: #818cf8; --accent-glow: rgba(129, 140, 248, 0.3); --border: #334155;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
-        body { background-color: var(--bg-body); color: var(--text-primary); transition: 0.3s; min-height: 100vh; padding: 20px 10px 100px 10px; overflow-x: hidden; }
-        
-        body.focus-active .header-card, body.focus-active .goals-wrapper, body.focus-active .graph-toggle, body.focus-active .settings-btn { display: none !important; }
-        body.focus-active .container { max-width: 600px; margin-top: 10vh; }
-        body.focus-active .sticky-wrapper { position: static; background: transparent !important; box-shadow: none !important; border: none; }
 
-        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+        [data-theme="dark"] {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #818cf8;
+            --accent-glow: rgba(129, 140, 248, 0.3);
+            --border: #334155;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
         
-        .header-card { background: var(--bg-card); border-radius: 24px; padding: 24px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+            min-height: 100vh;
+            padding: 20px 10px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        body.focus-active .header-card, 
+        body.focus-active .goals-wrapper,
+        body.focus-active .graph-toggle,
+        body.focus-active .settings-btn { display: none !important; }
+        
+        body.focus-active .container { max-width: 600px; margin-top: 10vh; }
+        body.focus-active .sticky-wrapper { position: relative; top: 0; background: transparent !important; box-shadow: none !important; border: none; }
+
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; transition: 0.3s; }
+
+        .header-card {
+            background: var(--bg-card); border-radius: 24px; padding: 24px;
+            box-shadow: var(--shadow); border: 1px solid var(--border);
+        }
         .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
         .header-actions { display: flex; gap: 10px; align-items: center; }
-        
-        .settings-btn, .notif-btn { background: var(--bg-body); border: 1px solid var(--border); width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-secondary); }
-        .graph-toggle { background: var(--bg-body); padding: 4px; border-radius: 12px; display: flex; gap: 4px; border: 1px solid var(--border); }
-        .toggle-btn { padding: 6px 14px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+
+        .settings-btn, .notif-btn {
+            background: var(--bg-body); border: 1px solid var(--border);
+            width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: var(--text-secondary); transition: 0.2s;
+        }
+        .settings-btn:hover, .notif-btn:hover { background: var(--text-primary); color: var(--bg-card); }
+        .notif-btn.active { color: var(--accent); border-color: var(--accent); background: var(--bg-card); }
+
+        .graph-toggle {
+            background: var(--bg-body); padding: 4px; border-radius: 12px; display: flex; gap: 4px; border: 1px solid var(--border);
+        }
+        .toggle-btn {
+            padding: 6px 14px; border-radius: 8px; border: none; background: transparent;
+            color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
         .toggle-btn.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        .cloud-status { font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 5px; }
-        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
+        .cloud-status {
+            font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 5px;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); transition: 0.3s; }
         .status-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
         .status-dot.success { background: var(--success); }
         .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        .chart-wrapper { position: relative; height: 200px; width: 100%; border-bottom: 1px solid var(--border); display: flex; align-items: flex-end; }
+        /* --- GRAPH --- */
+        .chart-wrapper {
+            position: relative; height: 200px; width: 100%;
+            border-bottom: 1px solid var(--border); display: flex; align-items: flex-end;
+        }
         .chart-grid { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
         .grid-line { width: 100%; height: 1px; background: var(--border); opacity: 0.4; }
+        
         .bars-container { display: flex; align-items: flex-end; justify-content: space-between; width: 100%; height: 100%; padding-top: 20px; z-index: 2; gap: 8px; }
-        .bars-container.month-view { overflow-x: auto; justify-content: flex-start; gap: 10px; }
+        .bars-container.month-view { overflow-x: auto; justify-content: flex-start; gap: 10px; padding-bottom: 5px; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
         
-        .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; min-width: 30px; cursor: pointer; }
-        .bar-stack { width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); display: flex; flex-direction: column-reverse; overflow: hidden; min-height: 6px; transition: height 0.6s ease; }
+        .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative; min-width: 30px; cursor: pointer; }
+        .month-view .bar-group { flex: 0 0 auto; width: 34px; }
+        
+        .bar-stack {
+            width: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); 
+            display: flex; flex-direction: column-reverse; /* Green on bottom */
+            overflow: hidden; min-height: 6px; transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+        }
+        
         .bar-segment { width: 100%; transition: height 0.3s ease; }
-        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; }
-        .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; opacity: 0; transform: translateY(5px); transition: 0.2s; font-family: monospace; }
+        .bar-segment.done { background: var(--success); }
+        .bar-segment.missed { background: var(--danger); opacity: 0.8; }
+        .bar-segment.remaining { background: var(--border); } 
+
+        .bar-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; font-weight: 700; text-align: center; line-height: 1.2; }
+        .count-label { font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px; font-family: monospace; font-weight: 600; opacity: 0; transform: translateY(5px); transition: 0.2s; white-space: pre; text-align: center; }
         .bar-group:hover .count-label { opacity: 1; transform: translateY(0); }
+        .bar-group.today .count-label { opacity: 1; transform: translateY(0); color: var(--accent); }
 
-        .sticky-wrapper { position: sticky; top: 0; z-index: 2000; background-color: var(--bg-body); padding: 15px 0; border-bottom: 1px solid var(--border); transition: background-color 0.3s; }
-        .filter-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; overflow: hidden; }
-        .filter-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-        .filter-chip { padding: 4px 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+        /* --- STICKY HEADER --- */
+        .sticky-wrapper {
+            position: sticky; top: 0; z-index: 2000;
+            background-color: var(--bg-body);
+            padding-top: 15px; padding-bottom: 15px; margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 10px 30px -15px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+        .filter-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; overflow: hidden; padding: 0 2px; }
+        .filter-label { font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
+        .filter-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+        
+        .filter-chip {
+            padding: 4px 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
+        }
+        .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 4px 10px var(--accent-glow); }
 
-        .search-bar { background: var(--bg-card); padding: 10px; border-radius: 18px; display: flex; align-items: center; border: 1px solid var(--border); margin-bottom: 10px; }
-        .main-input { flex: 1; border: none; background: transparent; font-size: 1rem; outline: none; color: var(--text-primary); padding-left: 10px; }
-        .big-add-btn { background: var(--accent); color: white; border: none; padding: 8px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .search-bar {
+            background: var(--bg-card); padding: 10px 10px 10px 20px; border-radius: 18px;
+            display: flex; align-items: center; border: 1px solid var(--border);
+            box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05); margin-bottom: 10px;
+        }
+        .main-input { flex: 1; border: none; background: transparent; font-size: 1rem; outline: none; color: var(--text-primary); }
+        .big-add-btn {
+            background: var(--accent); color: white; border: none; padding: 8px 20px;
+            border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+        }
         
-        .chips-row { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; scrollbar-width: none; }
-        .chip { padding: 6px 12px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .chip.active { background: var(--text-primary); color: var(--bg-card); }
-        .chip.p-high.active { background: var(--danger); color: white !important; border-color: var(--danger); }
-        .chip.p-med.active { background: #f59e0b; color: white !important; border-color: #f59e0b; }
-        .chip.p-low.active { background: var(--success); color: white !important; border-color: var(--success); }
+        .chips-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px 0; scrollbar-width: none; align-items: center; }
+        .chip {
+            padding: 6px 12px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;
+        }
+        .chip.active { background: var(--text-primary); color: var(--bg-card); border-color: var(--text-primary); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .chip.p-high.active { background: var(--danger); border-color: var(--danger); color: #ffffff !important; }
+        .chip.p-med.active { background: #f59e0b; border-color: #f59e0b; color: #ffffff !important; }
+        .chip.p-low.active { background: var(--success); border-color: var(--success); color: #ffffff !important; }
+        
+        .manage-btn { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; font-size: 0.8rem; }
 
-        .section-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; }
-        .add-icon-btn { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
-        .goals-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .goal-column { background: var(--bg-card); border-radius: 20px; padding: 20px; border: 1px solid var(--border); }
-        
+        /* --- TASKS --- */
+        .section-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .add-icon-btn {
+            width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: white;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); transition: 0.2s;
+        }
+        .goals-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .goal-column { background: var(--bg-card); border-radius: 20px; padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+
         .task-list { display: flex; flex-direction: column; gap: 10px; min-height: 50px; }
-        .task-card { background: var(--bg-card); padding: 14px; border-radius: 14px; border: 1px solid var(--border); display: flex; flex-direction: column; animation: slideUp 0.3s ease; position: relative; }
-        .task-main-row { display: flex; align-items: center; gap: 12px; width: 100%; z-index: 2; }
-        .goal-column .task-card { background: var(--bg-body); }
+        .task-card {
+            background: var(--bg-card); padding: 14px; border-radius: 14px; border: 1px solid var(--border);
+            display: flex; flex-direction: column; 
+            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .task-main-row { display: flex; align-items: center; gap: 12px; width: 100%; position: relative; z-index: 2; }
+        .goal-column .task-card { background: var(--bg-body); border: 1px solid rgba(0,0,0,0.05); }
+        .task-card.deleting { transform: translateX(100%); opacity: 0; }
         
-        .task-check { width: 24px; height: 24px; border: 2px solid var(--text-secondary); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .task-check.checked { background: var(--success); border-color: var(--success); }
+        .task-check {
+            width: 24px; height: 24px; border: 2px solid var(--text-secondary); border-radius: 8px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s;
+        }
+        .task-check.checked { background: var(--success); border-color: var(--success); transform: scale(1.1); }
         .task-check.checked::after { content: '✓'; color: white; font-weight: 900; font-size: 14px; }
         
         .task-body { flex: 1; min-width: 0; }
-        .task-txt { font-size: 1rem; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .task-txt { font-size: 1rem; color: var(--text-primary); font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .task-txt.done { text-decoration: line-through; color: var(--text-secondary); opacity: 0.7; }
-        .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+        
+        .task-meta { display: flex; gap: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; align-items: center; flex-wrap: wrap; }
         .meta-tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-body); color: var(--text-secondary); border: 1px solid var(--border); }
+        
+        .badge-transferred { background: var(--warning) !important; color: white !important; border-color: var(--warning) !important; }
+        .badge-fresh { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
+
         .p-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-
-        .task-actions { display: flex; gap: 5px; opacity: 0.5; transition: 0.2s; }
+        
+        .task-actions { display: flex; gap: 2px; opacity: 0.5; transition: 0.2s; }
         .task-card:hover .task-actions { opacity: 1; }
-        .action-icon { cursor: pointer; padding: 6px; font-size: 1rem; color: var(--text-secondary); }
-        .action-icon:hover { color: var(--accent); }
-        .action-icon.del:hover { color: var(--danger); }
+        .action-icon { cursor: pointer; padding: 6px; font-size: 1rem; color: var(--text-secondary); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+        .action-icon:hover { color: var(--accent); background: var(--bg-body); }
+        .action-icon.del:hover { color: var(--danger); background: #fef2f2; }
+        
+        .chevron-icon { transition: transform 0.3s ease; }
+        .chevron-icon.rotated { transform: rotate(180deg); }
 
-        .subtask-area { max-height: 0; overflow: hidden; transition: 0.3s; background: var(--bg-body); margin: 0 -14px -14px -14px; padding: 0 14px; }
-        .subtask-area.active { max-height: 500px; padding-top: 10px; padding-bottom: 10px; border-top: 1px solid var(--border); }
-        .sub-item { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-secondary); }
+        /* --- SUBTASKS --- */
+        .subtask-area { 
+            max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-body); margin: 0 -14px -14px -14px; padding: 0 14px; border-top: 1px solid transparent;
+        }
+        .subtask-area.active { 
+            max-height: 500px; /* Arbitrary large height for animation */
+            padding-top: 10px; padding-bottom: 10px; border-top-color: var(--border);
+        }
+        .sub-progress { height: 4px; background: rgba(0,0,0,0.05); border-radius: 2px; margin-bottom: 12px; overflow: hidden; }
+        .sub-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+        
+        .sub-item { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-secondary); padding-left: 5px; }
         .sub-check { width: 18px; height: 18px; border: 1px solid var(--text-secondary); border-radius: 6px; cursor: pointer; display: flex; justify-content: center; align-items: center; flex-shrink: 0; background: var(--bg-card); }
         .sub-check.checked { background: var(--accent); border-color: var(--accent); }
         .sub-check.checked::after { content: '✓'; color: white; font-size: 12px; }
-        .sub-input-main { width: 100%; border: 1px solid var(--border); background: var(--bg-card); padding: 8px; border-radius: 8px; outline: none; color: var(--text-primary); }
+        
+        .sub-text { flex: 1; cursor: text; padding: 4px 6px; border-radius: 4px; border: 1px solid transparent; transition: 0.2s; }
+        .sub-text:hover { background: var(--bg-card); border-color: var(--border); }
+        .sub-text-input { width: 100%; border: 1px solid var(--accent); border-radius: 4px; padding: 4px 6px; font-size: 0.9rem; outline: none; background: var(--bg-card); color: var(--text-primary); }
+        
+        .sub-del { font-size: 1rem; cursor: pointer; color: var(--text-secondary); opacity: 0; transition: 0.2s; padding: 0 4px; }
+        .sub-item:hover .sub-del { opacity: 0.5; }
+        .sub-del:hover { opacity: 1; color: var(--danger); }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(5px); z-index: 3000; display: none; align-items: center; justify-content: center; }
-        .modal-overlay.active { display: flex; }
-        .modal-card { background: var(--bg-card); padding: 25px; border-radius: 24px; width: 90%; max-width: 400px; text-align: center; border: 1px solid var(--border); }
-        .modal-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); margin-bottom: 15px; outline: none; }
+        .sub-input-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .sub-input-main { flex: 1; border: 1px solid var(--border); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; outline: none; color: var(--text-primary); }
+        .sub-input-main:focus { border-color: var(--accent); }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+            z-index: 3000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-card {
+            background: var(--bg-card); padding: 25px; border-radius: 24px; width: 90%; max-width: 400px;
+            text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9); 
+            transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid var(--border);
+        }
+        .modal-overlay.active .modal-card { transform: scale(1); }
+        .modal-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; color: var(--text-primary); }
+        .modal-subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; }
+        .modal-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 1rem; outline: none; margin-bottom: 15px; }
+        .modal-label { text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; display: block; margin-top: 12px; }
+        
         .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
-        .btn-base { flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; }
-        .btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+        .btn-base { flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: 0.2s; }
+        .btn-cancel { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
         .btn-confirm { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
         
+        .data-btn { display: flex; align-items: center; gap: 10px; padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: var(--bg-body); color: var(--text-primary); font-weight: 600; width: 100%; text-align: left; }
+        .data-btn:hover { background: var(--bg-card); border-color: var(--accent); }
+
+        /* REMINDER GRID */
+        .reminder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .time-btn { padding: 15px; border-radius: 12px; background: var(--bg-body); border: 1px solid var(--border); font-weight: 600; color: var(--text-primary); cursor: pointer; transition: 0.2s; }
+        .time-btn:hover { background: var(--bg-card); border-color: var(--accent); color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+
+        /* TOAST */
+        .toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 4000; pointer-events: none; }
+        .toast { 
+            background: var(--text-primary); color: var(--bg-card); padding: 10px 20px; border-radius: 50px; 
+            font-weight: 600; font-size: 0.9rem; margin-top: 10px; opacity: 0; transform: translateY(20px); 
+            transition: 0.3s; box-shadow: 0 10px 20px -5px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px;
+        }
+        .toast.visible { opacity: 1; transform: translateY(0); }
+
         .sync-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left; }
-        .sync-input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); margin-bottom: 10px; outline: none; font-family: monospace; font-size: 0.8rem; }
+        .sync-label { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; display: block; }
+        .sync-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; margin-bottom: 10px; outline: none; font-family: monospace; }
+        .password-mask { -webkit-text-security: disc; } 
+
+        .cat-list-ui { text-align: left; max-height: 250px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .cat-item-ui { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: 10px; align-items: center; border: 1px solid var(--border); }
+        .cat-actions { display: flex; gap: 8px; }
+        .cat-icon-btn { cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.6; }
         
-        .theme-fab { position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; z-index: 100; }
-        .focus-fab { position: fixed; bottom: 90px; right: 30px; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; z-index: 100; color: var(--accent); }
+        .history-list { text-align: left; max-height: 300px; overflow-y: auto; margin: 10px 0; padding-right: 5px; }
+        .hist-item { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+        .hist-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .confetti { position: fixed; width: 8px; height: 8px; top: -10px; z-index: 3000; pointer-events: none; border-radius: 50%; }
-        .drag-handle { cursor: move; color: var(--border); margin-right: 8px; }
+        
+        .theme-fab { position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; z-index: 100; transition: 0.3s; }
+        .focus-fab { position: fixed; bottom: 90px; right: 30px; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; z-index: 100; transition: 0.3s; color: var(--accent); }
+        .theme-fab:hover, .focus-fab:hover { transform: scale(1.1); }
+        
+        .drag-handle { cursor: move; color: var(--border); margin-right: 8px; font-size: 1.2rem; display: flex; align-items: center; }
+        .task-card:hover .drag-handle { color: var(--text-secondary); }
     </style>
 </head>
 <body>
+<div style="height:0; overflow:hidden; position:absolute;"><input type="text" name="fake_username"><input type="password" name="fake_password"></div>
+
 <div class="container">
+
     <div class="header-card">
         <div class="header-top">
             <div>
                 <h2 style="margin:0;">Dashboard</h2>
                 <div style="font-size:0.9rem; color:var(--text-secondary); font-weight:600;" id="dateDisplay">...</div>
+                
                 <div class="cloud-status" id="cloudIndicator" style="display:none;">
                     <div class="status-dot" id="cloudDot"></div>
-                    <span id="cloudText">Cloud Ready</span>
+                    <span id="cloudText">Saved</span>
                 </div>
             </div>
             <div class="header-actions">
+                <button class="notif-btn" id="notifBtn" onclick="requestNotificationPermission()" title="Enable Notifications">🔔</button>
                 <div class="graph-toggle">
                     <button class="toggle-btn active" id="btn-week" onclick="setGraph('week')">Week</button>
                     <button class="toggle-btn" id="btn-month" onclick="setGraph('month')">Month</button>
@@ -145,6 +327,7 @@
                 <button class="settings-btn" onclick="openModal('settingsModal')">⚙️</button>
             </div>
         </div>
+        
         <div class="chart-wrapper">
             <div class="chart-grid"><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div></div>
             <div class="bars-container" id="chartBars"></div>
@@ -153,335 +336,695 @@
     
     <div class="sticky-wrapper">
         <div class="filter-wrapper">
-            <div style="font-size:0.7rem; font-weight:800; color:var(--text-secondary);">FILTER:</div>
+            <div class="filter-label">Filter:</div>
             <div class="filter-scroll" id="filterContainer"></div>
         </div>
+        
         <div class="search-bar">
-            <input type="text" class="main-input" id="quick_add_input" placeholder="New Task..." autocomplete="off">
+            <input type="text" class="main-input" id="quick_add_input" name="task_entry_search" placeholder="New Task (Press 'N')..." autocomplete="new-password" role="presentation" readonly onfocus="this.removeAttribute('readonly');">
             <button class="big-add-btn" onclick="addTask('daily')">ADD</button>
         </div>
+        
         <div class="chips-row">
             <div class="chip p-low active" onclick="setPriority(this, 'low')">Low</div>
             <div class="chip p-med" onclick="setPriority(this, 'med')">Medium</div>
             <div class="chip p-high" onclick="setPriority(this, 'high')">High</div>
         </div>
         <div class="chips-row">
-            <button class="settings-btn" style="width:30px; height:30px;" onclick="openCatManager()">⚙️</button>
+            <button class="manage-btn" onclick="openCatManager()">⚙️</button>
             <div id="catContainer" style="display:flex; gap:8px;"></div>
         </div>
     </div>
 
     <div>
-        <div class="section-title">Today <span style="font-size:0.8em; opacity:0.5; font-weight:400" id="todayCount">0</span></div>
-        <div class="task-list" id="taskListDaily" ondragover="handleDragOver(event)"></div>
+        <div class="section-title">Today's Missions <span style="font-size:0.8em; opacity:0.5; font-weight:400" id="todayCount">0 tasks</span></div>
+        <div class="task-list" id="taskListDaily"></div>
     </div>
     
     <div class="goals-wrapper">
-        <div class="goal-column"><div class="section-title"><span style="color:var(--accent)">Weekly</span><div class="add-icon-btn" onclick="openAddGoalModal('weekly')">＋</div></div><div class="task-list" id="taskListWeekly"></div></div>
-        <div class="goal-column"><div class="section-title"><span style="color:#ec4899">Monthly</span><div class="add-icon-btn" onclick="openAddGoalModal('monthly')">＋</div></div><div class="task-list" id="taskListMonthly"></div></div>
+        <div class="goal-column"><div class="section-title"><span style="color:var(--accent)">Weekly Targets</span><div class="add-icon-btn" onclick="openAddGoalModal('weekly')">＋</div></div><div class="task-list" id="taskListWeekly"></div></div>
+        <div class="goal-column"><div class="section-title"><span style="color:#ec4899">Monthly Missions</span><div class="add-icon-btn" onclick="openAddGoalModal('monthly')">＋</div></div><div class="task-list" id="taskListMonthly"></div></div>
     </div>
+
 </div>
 
-<div class="modal-overlay" id="rolloverModal"><div class="modal-card"><div class="modal-title">New Day!</div><div class="modal-subtitle">Pending tasks: <span id="rolloverCount" style="color:var(--danger)">0</span></div><div class="modal-btns"><button class="btn-base btn-confirm" onclick="handleRollover('transfer')">Transfer</button><button class="btn-base btn-cancel" onclick="handleRollover('archive')">Clear</button></div></div></div>
+<div class="modal-overlay" id="rolloverModal">
+    <div class="modal-card">
+        <div class="modal-title">Mission Report</div>
+        <div class="modal-subtitle">You have <span id="rolloverCount" style="color:var(--danger); font-weight:bold;">0</span> incomplete tasks from yesterday.</div>
+        <div class="modal-btns">
+            <button class="btn-base btn-confirm" onclick="handleRollover('transfer')">Transfer to Today</button>
+            <button class="btn-base btn-cancel" onclick="handleRollover('archive')">Archive as Missed</button>
+        </div>
+    </div>
+</div>
 
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal-card">
-        <div class="modal-title">Settings</div>
-        <button class="btn-base btn-cancel" style="width:100%; margin-bottom:10px;" onclick="exportData()">Backup Data</button>
-        <button class="btn-base btn-cancel" style="width:100%; margin-bottom:10px;" onclick="triggerImport()">Restore Data</button>
+    <div class="modal-card" style="max-height:85vh; overflow-y:auto;">
+        <div class="modal-title">Settings & Data</div>
+        <div class="modal-subtitle">Backup or Sync your data</div>
+        <button class="data-btn" onclick="exportData()"><span class="data-icon">📥</span><div><div style="font-size:0.95rem">Save Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Download .json file</div></div></button>
+        <button class="data-btn" onclick="triggerImport()"><span class="data-icon">📤</span><div><div style="font-size:0.95rem">Restore Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div></div></button>
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
-            <div style="font-size:0.8rem; font-weight:700; margin-bottom:5px;">Firebase Config</div>
-            <textarea class="sync-input" id="firebaseConfig" placeholder='{"apiKey": "AIzaSy...", "databaseURL": "https://..."}' style="height:60px;"></textarea>
-            <input type="text" class="sync-input" id="syncId" placeholder="Secret ID (e.g. 'my-notes')">
-            <button class="btn-base btn-confirm" onclick="initFirebase(true)">Sync Now</button>
-            <div id="connectionMsg" style="margin-top:5px; font-size:0.75rem; color:var(--text-secondary)"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
+            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
+            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
+            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
+            <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
-        <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close</button>
+        <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
     </div>
 </div>
 
-<div class="modal-overlay" id="editTaskModal"><div class="modal-card"><div class="modal-title">Edit</div><input type="text" class="modal-input" id="editTaskTitle"><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('editTaskModal')">Cancel</button><button class="btn-base btn-confirm" onclick="saveTaskEdit()">Save</button></div></div></div>
-<div class="modal-overlay" id="addGoalModal"><div class="modal-card"><div class="modal-title" id="goalModalTitle">Add Goal</div><input type="text" class="modal-input" id="goalInputName"><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button><button class="btn-base btn-confirm" id="btnSaveGoal">Save</button></div></div></div>
-<div class="modal-overlay" id="catManagerModal"><div class="modal-card"><div class="modal-title">Categories</div><div id="catManagerList" style="text-align:left; margin-bottom:15px; max-height:200px; overflow-y:auto;"></div><button class="btn-base btn-confirm" onclick="promptAddCategory()">+ Add</button><button class="btn-base btn-cancel" style="margin-top:10px;" onclick="closeModal('catManagerModal')">Done</button></div></div>
+<div class="modal-overlay" id="editTaskModal">
+    <div class="modal-card">
+        <div class="modal-title">Edit Task</div>
+        
+        <span class="modal-label">Title</span>
+        <input type="text" class="modal-input" id="editTaskTitle" placeholder="Task name">
+        
+        <span class="modal-label">Priority</span>
+        <div class="chips-row" id="editPriorityChips">
+            <div class="chip p-low" onclick="setEditPriority('low')">Low</div>
+            <div class="chip p-med" onclick="setEditPriority('med')">Medium</div>
+            <div class="chip p-high" onclick="setEditPriority('high')">High</div>
+        </div>
 
+        <span class="modal-label">Category</span>
+        <div class="chips-row" id="editCategoryChips"></div>
+
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('editTaskModal')">Cancel</button>
+            <button class="btn-base btn-confirm" onclick="saveTaskEdit()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="reminderModal"><div class="modal-card"><div class="modal-title">Set Reminder</div><div class="modal-subtitle">When should I remind you?</div><div class="reminder-grid"><button class="time-btn" onclick="confirmReminder(15)">15m</button><button class="time-btn" onclick="confirmReminder(30)">30m</button><button class="time-btn" onclick="confirmReminder(60)">1h</button><button class="time-btn" onclick="confirmReminder(120)">2h</button></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('reminderModal')">Cancel</button></div></div>
+
+<div class="modal-overlay" id="addGoalModal">
+    <div class="modal-card">
+        <div class="modal-title" id="goalModalTitle">Add Goal</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:10px;">Using current priority & category</div>
+        <input type="text" class="modal-input" id="goalInputName" placeholder="What needs to be done?">
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button>
+            <button class="btn-base btn-confirm" id="btnSaveGoal">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="catManagerModal"><div class="modal-card"><div class="modal-title">Categories</div><div class="cat-list-ui" id="catManagerList"></div><button class="btn-base btn-confirm" style="width:100%; margin-bottom:10px;" onclick="promptAddCategory()">+ New Category</button><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('catManagerModal')">Done</button></div></div>
+<div class="modal-overlay" id="catInputModal"><div class="modal-card"><div class="modal-title" id="catInputTitle">New Category</div><input type="text" class="modal-input" id="catInputField" placeholder="Name..."><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('catInputModal')">Cancel</button><button class="btn-base btn-confirm" id="catInputConfirm">Save</button></div></div></div>
+<div class="modal-overlay" id="historyModal"><div class="modal-card"><div class="modal-title" id="histDateTitle">Date</div><div id="histContent" class="history-list"></div><button class="btn-base btn-cancel" style="width:100%" onclick="closeModal('historyModal')">Close</button></div></div>
+<div class="modal-overlay" id="confirmModal"><div class="modal-card"><div class="modal-title">Are you sure?</div><div class="modal-subtitle" id="confirmText">This cannot be undone.</div><div class="modal-btns"><button class="btn-base btn-cancel" onclick="closeModal('confirmModal')">Cancel</button><button class="btn-base btn-danger" id="confirmActionBtn">Yes, Delete</button></div></div></div>
 <div class="toast-container" id="toastContainer"></div>
-<button class="focus-fab" onclick="toggleFocusMode()">🎯</button>
-<button class="theme-fab" onclick="toggleTheme()">🌓</button>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<button class="focus-fab" onclick="toggleFocusMode()" title="Focus Mode (F)">🎯</button>
+<button class="theme-fab" onclick="toggleTheme()" title="Toggle Theme">🌓</button>
 
 <script>
-    // --- CORE STATE ---
-    const KEY = 'tm_v36_store';
-    let state = { todos: [], goals: { weekly: [], monthly: [] }, dailyStats: {}, categories: ['Personal', 'Work'], theme: 'light', graphMode: 'week', activeFilter: 'All' };
-    let inputs = { priority: 'low', category: 'Personal' };
-    let dbRef = null, syncTimer = null, editingId = null, editingType = null, rolloverTasks = [];
-    let isSyncingDown = false; // The Loop Killer
+    const STABLE_KEY = 'tm_universal_store';
+    const LEGACY_KEYS = ['tm_v18_data', 'tm_v16_data', 'tm_v15_data', 'tm_v11_data'];
 
-    // --- INITIALIZATION ---
+    let state = { todos: [], goals: { weekly: [], monthly: [] }, archives: {}, categories: ['Personal', 'Work', 'Health'], theme: 'light', graphMode: 'week', activeFilter: 'All', lastLoginDate: null, updatedAt: 0, config: { lastPriority: 'low', lastCategory: 'Personal' } };
+    let currentInput = { priority: 'low', category: 'Personal' };
+    let syncTimer = null;
+    let dragSrcEl = null;
+    let pendingReminderTask = null;
+    let pendingRolloverTasks = [];
+    
+    // Edit Buffer
+    let editingTaskInfo = null;
+    
+    let isDirty = false;
+
     function init() {
-        const saved = localStorage.getItem(KEY);
-        if(saved) state = { ...state, ...JSON.parse(saved) };
-        
-        // Data Integrity Fixes
-        if(!state.dailyStats) state.dailyStats = {};
-        ['todos','weekly','monthly'].forEach(k => { if(Array.isArray(state[k])) state[k].forEach(t => { if(!t.subtasks) t.subtasks=[]; }); else if(k!=='todos') state.goals[k]=[]; });
+        let loaded = false;
+        const saved = localStorage.getItem(STABLE_KEY);
+        if(saved) { try { state = JSON.parse(saved); loaded = true; } catch(e){} }
+        if (!loaded) { for (const key of LEGACY_KEYS) { const legacy = localStorage.getItem(key); if (legacy) { try { state = JSON.parse(legacy); loaded = true; save(); break; } catch(e){} } } }
 
-        // Load Sync Config
-        const conf = JSON.parse(localStorage.getItem('tm_firebase_config') || '{}');
-        if(conf.str) document.getElementById('firebaseConfig').value = conf.str;
-        if(conf.id) document.getElementById('syncId').value = conf.id;
+        const ensureSubtasks = (list) => list.forEach(t => { if(!t.subtasks) t.subtasks = []; });
+        if(state.todos) ensureSubtasks(state.todos);
+        if(state.goals && state.goals.weekly) ensureSubtasks(state.goals.weekly);
+        if(state.goals && state.goals.monthly) ensureSubtasks(state.goals.monthly);
+        if(!state.categories || !state.categories.length) state.categories = ['Personal'];
+        if(!state.goals) state.goals = { weekly: [], monthly: [] };
+        if(!state.archives) state.archives = {};
+        if(!state.activeFilter) state.activeFilter = 'All';
+        if(!state.updatedAt) state.updatedAt = Date.now();
+        if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
 
-        // UI Setup
+        currentInput.priority = state.config.lastPriority || 'low';
+        currentInput.category = state.config.lastCategory || (state.categories[0] || 'Personal');
+
+        sortTasks(state.todos); sortTasks(state.goals.weekly); sortTasks(state.goals.monthly);
+
+        const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
+        if(syncConfig.apiKey) document.getElementById('app_token_field').value = syncConfig.apiKey;
+        if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
+
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
         
-        // Run Logic
-        recalcStats();
-        checkRollover();
-        render();
-        if(conf.str && conf.id) initFirebase(false);
+        checkDayRollover();
+        renderAll();
 
-        // Listeners
-        document.addEventListener('keydown', e => { 
-            if(e.key==='n' && e.target.tagName!=='INPUT') { e.preventDefault(); document.getElementById('quick_add_input').focus(); }
-            if(e.key==='f' && e.target.tagName!=='INPUT') { e.preventDefault(); toggleFocusMode(); }
-        });
+        if("Notification" in window && Notification.permission === "granted") document.getElementById('notifBtn').classList.add('active');
+        if(syncConfig.apiKey && syncConfig.binId) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
+        
+        let focusTimer;
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { checkDayRollover(); clearTimeout(focusTimer); focusTimer = setTimeout(() => { if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); }, 1000); } });
+
+        document.getElementById('quick_add_input').addEventListener('keypress', e => { if(e.key==='Enter') addTask('daily'); });
+        document.getElementById('catInputField').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('catInputConfirm').click(); });
+        document.getElementById('goalInputName').addEventListener('keypress', e => { if(e.key==='Enter') document.getElementById('btnSaveGoal').click(); });
+        document.getElementById('editTaskTitle').addEventListener('keypress', e => { if(e.key==='Enter') saveTaskEdit(); });
+        
+        document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key.toLowerCase() === 'n') { e.preventDefault(); document.getElementById('quick_add_input').focus(); } if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFocusMode(); } if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); document.getElementById('quick_add_input').blur(); } });
     }
 
-    // --- SYNC ENGINE (STABLE v8) ---
-    function initFirebase(manual) {
-        const str = document.getElementById('firebaseConfig').value.trim();
-        const id = document.getElementById('syncId').value.trim();
-        if(!str || !id) return;
-        
-        localStorage.setItem('tm_firebase_config', JSON.stringify({ str, id }));
-        updateCloudUI('syncing', 'Connecting...');
-        
-        // Timeout to prevent infinite spinner
-        const timeout = setTimeout(() => {
-            if(document.getElementById('cloudText').innerText === 'Connecting...') {
-                updateCloudUI('error', 'Connection Timeout');
-                if(manual) alert("Could not connect. Check your internet or API Config.");
+    function checkDayRollover() {
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        if (state.lastLoginDate && state.lastLoginDate !== todayKey) {
+            const previousTasks = state.todos;
+            const completed = previousTasks.filter(t => t.completed);
+            const incomplete = previousTasks.filter(t => !t.completed);
+
+            if (completed.length > 0) {
+                if (!state.archives[state.lastLoginDate]) state.archives[state.lastLoginDate] = { completed: [], missed: [], transferred: [] };
+                state.archives[state.lastLoginDate].completed = completed;
             }
-        }, 8000);
 
-        try {
-            if(!firebase.apps.length) firebase.initializeApp(JSON.parse(str));
-            dbRef = firebase.database().ref('tm_v36/' + id);
-            
-            // LISTENER: Trusts the cloud implicitly
-            dbRef.on('value', snap => {
-                clearTimeout(timeout);
-                const val = snap.val();
-                if(val) {
-                    isSyncingDown = true; // Block loop
-                    state = val;
-                    save(true); // Save to local without pushing back
-                    recalcStats();
-                    render();
-                    updateCloudUI('success', 'Synced');
-                    setTimeout(() => isSyncingDown = false, 500); // Release lock
-                } else {
-                    push(); // New cloud DB, push local
-                }
-            });
-        } catch(e) { 
-            clearTimeout(timeout);
-            console.error(e);
-            if(manual) alert("Invalid JSON Config. Ensure it starts with { and ends with }"); 
-            updateCloudUI('error', 'Config Error');
-        }
-    }
-
-    function push() {
-        if(!dbRef || isSyncingDown) return;
-        updateCloudUI('syncing', 'Syncing...');
-        dbRef.set(state).then(() => updateCloudUI('success', 'Saved')).catch(() => updateCloudUI('error', 'Error'));
-    }
-
-    function save(fromRemote = false) {
-        localStorage.setItem(KEY, JSON.stringify(state));
-        if(!fromRemote && dbRef && !isSyncingDown) {
-            clearTimeout(syncTimer);
-            syncTimer = setTimeout(push, 500); // 500ms debounce
-        }
-    }
-
-    // --- LOGIC ---
-    function recalcStats() {
-        const k = new Date().toISOString().split('T')[0]; // Strict YYYY-MM-DD
-        const t = state.todos;
-        state.dailyStats[k] = { total: t.length, done: t.filter(x=>x.completed).length };
-    }
-
-    function addTask(type) {
-        const el = type==='daily' ? document.getElementById('quick_add_input') : document.getElementById('goalInputName');
-        const txt = el.value.trim();
-        if(!txt) return;
-        
-        const task = { id: Date.now(), text: txt, priority: inputs.priority, category: inputs.category, completed: false, subtasks: [] };
-        if(type==='daily') state.todos.push(task); else state.goals[type].push(task);
-        
-        el.value = '';
-        if(type!=='daily') closeModal('addGoalModal');
-        
-        sortTasks(type==='daily' ? state.todos : state.goals[type]);
-        recalcStats();
-        save(); render();
-    }
-
-    function toggleTask(type, id) {
-        const list = type==='daily' ? state.todos : state.goals[type];
-        const t = list.find(x => x.id === id);
-        if(t) {
-            t.completed = !t.completed;
-            if(t.completed) rainConfetti();
-            recalcStats();
-            save(); render();
-        }
-    }
-
-    function checkRollover() {
-        const today = new Date().toISOString().split('T')[0];
-        if(state.lastDate && state.lastDate !== today) {
-            const open = state.todos.filter(x => !x.completed);
-            if(open.length > 0) {
-                rolloverTasks = open;
-                document.getElementById('rolloverCount').innerText = open.length;
-                document.getElementById('rolloverModal').classList.add('active');
+            if (incomplete.length > 0) {
+                pendingRolloverTasks = incomplete;
+                state.todos = []; 
+                document.getElementById('rolloverCount').innerText = incomplete.length;
+                openModal('rolloverModal');
+            } else {
+                state.todos = []; 
             }
-            state.todos = []; // Clear for new day
         }
-        state.lastDate = today;
+        state.lastLoginDate = todayKey;
         save();
+        renderAll();
     }
 
     function handleRollover(action) {
-        if(action === 'transfer') {
-            const fresh = rolloverTasks.map(t => ({...t, id: Date.now()+Math.random(), completed: false}));
-            state.todos = [...fresh, ...state.todos];
-            recalcStats();
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+        const yKey = state.lastLoginDate || yesterday.toLocaleDateString('en-CA');
+        
+        if (!state.archives[yKey]) state.archives[yKey] = { completed: [], missed: [], transferred: [] };
+        state.archives[yKey].missed = [...pendingRolloverTasks]; 
+
+        if (action === 'transfer') {
+            const transferred = pendingRolloverTasks.map(t => ({
+                ...t, 
+                id: Date.now() + Math.random(), 
+                timestamp: new Date().toISOString(), 
+                completed: false, 
+                isTransferred: true, 
+                transferredFrom: yKey 
+            }));
+            state.todos = [...transferred, ...state.todos];
+            state.archives[yKey].transferred = [...pendingRolloverTasks];
+            
+            sortTasks(state.todos); 
+            showToast(`Moved ${pendingRolloverTasks.length} tasks to Today`);
+        } else {
+            showToast("Tasks archived as missed");
         }
-        document.getElementById('rolloverModal').classList.remove('active');
-        save(); render();
+        closeModal('rolloverModal');
+        save();
+        renderAll();
     }
 
-    // --- RENDERERS (FIXED LABELS) ---
-    function render() {
-        // Graph
-        const c = document.getElementById('chartBars'); c.innerHTML = '';
-        const limit = state.graphMode==='week' ? 7 : 30;
-        c.className = state.graphMode==='month' ? 'bars-container month-view' : 'bars-container';
-        
+    function renderGraph() {
+        const container = document.getElementById('chartBars'); container.innerHTML = '';
+        const limit = state.graphMode === 'week' ? 7 : 30;
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        let maxVal = 5; let dataPoints = [];
+
         for(let i=limit-1; i>=0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            const k = d.toISOString().split('T')[0];
-            const stat = state.dailyStats[k] || {total:0, done:0};
-            const h = stat.total ? (stat.done/stat.total)*100 : 0;
-            const col = h===100 ? 'var(--success)' : (h>0 ? 'var(--accent)' : '#eee');
-            
-            // LABEL LOGIC FIXED HERE
-            let label = d.getDate();
-            if(state.graphMode === 'week') {
-                label = d.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
-            }
+            const d = new Date(); d.setDate(d.getDate() - i); const dateKey = d.toLocaleDateString('en-CA'); 
+            const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter);
+            let done = 0, missed = 0, remaining = 0;
 
-            c.innerHTML += `
-            <div class="bar-group">
-                <div class="count-label">${stat.done}/${stat.total}</div>
-                <div class="bar-stack" style="height:100px"><div class="bar-segment" style="height:${Math.max(h,5)}%; background:${col}"></div></div>
-                <div class="bar-label" style="${i===0?'color:var(--accent)':''}">${label}</div>
-            </div>`;
+            if (dateKey === todayKey) {
+                done = state.todos.filter(t => t.completed && filterFn(t)).length;
+                remaining = state.todos.filter(t => !t.completed && filterFn(t)).length;
+                missed = 0; 
+            } else if (state.archives[dateKey]) {
+                done = state.archives[dateKey].completed ? state.archives[dateKey].completed.filter(filterFn).length : 0;
+                missed = state.archives[dateKey].missed ? state.archives[dateKey].missed.filter(filterFn).length : 0;
+                remaining = 0;
+            }
+            
+            const total = done + missed + remaining;
+            if(total > maxVal) maxVal = total;
+            const dayLabel = state.graphMode==='week' ? ['S','M','T','W','T','F','S'][d.getDay()] : d.getDate();
+            const pct = total > 0 ? Math.round((done/total)*100) : 0;
+            dataPoints.push({ label: dayLabel, done, missed, remaining, key: dateKey, isToday: (i===0), pct });
         }
 
-        // Filters & Cats
-        document.getElementById('filterContainer').innerHTML = ['All', ...state.categories].map(c => 
-            `<div class="filter-chip ${state.activeFilter===c?'active':''}" onclick="state.activeFilter='${c}';render()">${c}</div>`).join('');
-        document.getElementById('catContainer').innerHTML = state.categories.map(c => 
-            `<div class="chip ${inputs.category===c?'active':''}" onclick="inputs.category='${c}';render()">${c}</div>`).join('');
+        dataPoints.forEach(d => { 
+            const totalCount = d.done + d.missed + d.remaining;
+            const hTotal = maxVal > 0 ? (totalCount / maxVal) * 100 : 0;
+            const pDone = totalCount > 0 ? (d.done/totalCount)*100 : 0;
+            const pMissed = totalCount > 0 ? (d.missed/totalCount)*100 : 0;
+            const pRemaining = totalCount > 0 ? (d.remaining/totalCount)*100 : 0;
 
-        // Tasks
-        renderList('daily', 'taskListDaily');
-        renderList('weekly', 'taskListWeekly');
-        renderList('monthly', 'taskListMonthly');
-        document.getElementById('todayCount').innerText = state.todos.filter(x=>!x.completed).length;
-    }
-
-    function renderList(type, elId) {
-        const el = document.getElementById(elId); el.innerHTML = '';
-        let list = type==='daily' ? state.todos : state.goals[type];
-        if(state.activeFilter !== 'All') list = list.filter(x => x.category === state.activeFilter);
-        
-        list.forEach(t => {
-            const pCol = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
-            const subs = t.subtasks.length ? `<span class="meta-tag">${t.subtasks.filter(x=>x.completed).length}/${t.subtasks.length}</span>` : '';
-            
-            el.innerHTML += `
-            <div class="task-card" draggable="true" ondragstart="dragStart(event, ${t.id})" ondrop="drop(event, ${t.id}, '${type}')" ondragover="event.preventDefault()">
-                <div class="task-main-row">
-                    <div class="drag-handle">::</div>
-                    <div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div>
-                    <div class="task-body">
-                        <div class="task-txt ${t.completed?'done':''}">${t.text}</div>
-                        <div class="task-meta"><span class="p-dot" style="background:${pCol}"></span><span>${t.category}</span>${subs}</div>
+            container.innerHTML += `
+                <div class="bar-group ${d.isToday ? 'today' : ''}" onclick="openHistoryDetail('${d.key}')">
+                    <div class="count-label">${d.done}/${totalCount}\n${d.pct}%</div>
+                    <div class="bar-stack" style="height:${Math.max(hTotal, 6)}%">
+                        <div class="bar-segment done" style="height:${pDone}%"></div>
+                        <div class="bar-segment missed" style="height:${pMissed}%"></div>
+                        <div class="bar-segment remaining" style="height:${pRemaining}%"></div>
                     </div>
-                    <div class="task-actions">
-                        <div class="action-icon" onclick="editTask('${type}', ${t.id})">✎</div>
-                        <div class="action-icon" onclick="toggleSub(${t.id})">▼</div>
-                        <div class="action-icon del" onclick="delTask('${type}', ${t.id})">🗑</div>
-                    </div>
-                </div>
-                <div class="subtask-area" id="sub-${t.id}">
-                    ${t.subtasks.map((s,i) => `
-                        <div class="sub-item">
-                            <div class="sub-check ${s.completed?'checked':''}" onclick="togSub('${type}',${t.id},${i})"></div>
-                            <div style="flex:1">${s.text}</div>
-                            <div class="action-icon del" onclick="delSub('${type}',${t.id},${i})">×</div>
-                        </div>`).join('')}
-                    <input type="text" class="sub-input-main" placeholder="Add subtask..." onkeydown="if(event.key==='Enter') addSub(event,'${type}',${t.id})">
-                </div>
-            </div>`;
+                    <div class="bar-label" style="${d.isToday?'color:var(--accent)':''}">${d.label}</div>
+                </div>`;
         });
     }
 
-    // --- HELPERS ---
-    function setPriority(el, p) { inputs.priority = p; render(); }
-    function setGraph(m) { state.graphMode = m; render(); }
+    function sortTasks(list) {
+        const pVal = { high: 3, med: 2, low: 1 };
+        list.sort((a, b) => {
+            const pA = pVal[a.priority] || 0;
+            const pB = pVal[b.priority] || 0;
+            if (pA !== pB) return pB - pA; 
+            return b.id - a.id; 
+        });
+    }
+
+    // --- CORE SAVE & SYNC ---
+    function save() { 
+        state.updatedAt = Date.now(); 
+        localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
+        isDirty = true; 
+        triggerAutoSync(); 
+    }
+    
+    function triggerAutoSync() {
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        if(!apiKey || !binId || binId.length < 10) return;
+        
+        updateCloudUI('syncing', 'Syncing...');
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => { cloudUpload(true); }, 2000);
+    }
+
+    function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
+    function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
+    
+    async function cloudUpload(isSilent) {
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        let binId = document.getElementById('syncBinId').value.trim();
+        const statusEl = document.getElementById('syncStatus');
+        if(!apiKey) return;
+        if(!isSilent) statusEl.innerText = "Uploading...";
+        try {
+            if(!binId) {
+                const req = await fetch('https://api.jsonbin.io/v3/b', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                const res = await req.json();
+                if(req.ok) { 
+                    binId = res.metadata.id; 
+                    document.getElementById('syncBinId').value = binId; 
+                    saveSyncConfig(); 
+                    isDirty = false; 
+                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; 
+                    updateCloudUI('success', 'Saved'); 
+                } else throw new Error(res.message);
+            } else {
+                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(state) });
+                if(req.ok) { 
+                    isDirty = false; 
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
+                    updateCloudUI('success', 'Saved'); 
+                } else throw new Error("Update Failed");
+            }
+        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Error'); }
+    }
+
+    async function cloudDownload(isSilent) {
+        if (isDirty) { cloudUpload(true); return; }
+
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        const binId = document.getElementById('syncBinId').value.trim();
+        const statusEl = document.getElementById('syncStatus');
+        if(!apiKey || !binId || binId.length < 10) return;
+        if(!isSilent) statusEl.innerText = "Downloading...";
+        if(isSilent) updateCloudUI('syncing', 'Checking...');
+        
+        try {
+            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
+            const res = await req.json();
+            if(req.ok) {
+                const remote = res.record;
+                const localTime = state.updatedAt || 0;
+                const remoteTime = remote.updatedAt || 0;
+
+                if(remoteTime > localTime) {
+                    const mergedTodos = [...state.todos, ...remote.todos];
+                    const uniqueTodosMap = new Map();
+                    mergedTodos.forEach(t => { if (!uniqueTodosMap.has(t.id)) uniqueTodosMap.set(t.id, t); else uniqueTodosMap.set(t.id, t); });
+                    
+                    const mergeGoals = (local, remote) => {
+                        const map = new Map();
+                        [...local, ...(remote || [])].forEach(g => map.set(g.id, g));
+                        return Array.from(map.values());
+                    };
+
+                    state.todos = Array.from(uniqueTodosMap.values());
+                    state.goals.weekly = mergeGoals(state.goals.weekly, remote.goals.weekly);
+                    state.goals.monthly = mergeGoals(state.goals.monthly, remote.goals.monthly);
+                    state.archives = { ...state.archives, ...remote.archives };
+                    state.updatedAt = remote.updatedAt;
+
+                    if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
+                    currentInput.priority = state.config.lastPriority;
+                    currentInput.category = state.config.lastCategory;
+                    
+                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+                    renderAll();
+                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Merged!</span>';
+                    updateCloudUI('success', 'Updated');
+                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
+                    updateCloudUI('success', 'Synced');
+                } else {
+                    updateCloudUI('success', 'Local > Cloud');
+                }
+            } else throw new Error(res.message);
+        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); }
+    }
+
+    function exportData() { const dataStr = JSON.stringify(state, null, 2); const blob = new Blob([dataStr], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `taskmaster_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
+    function triggerImport() { document.getElementById('importFile').click(); }
+    function handleFileLoad(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const data = JSON.parse(e.target.result); if(confirm("Replace current data?")) { state = data; state.activeFilter = 'All'; save(); location.reload(); } } catch(err) { alert("Error: " + err.message); } }; reader.readAsText(file); input.value = ''; }
+    function renderAll() { renderFilters(); renderGraph(); renderCategories(); renderTasks('daily'); renderTasks('weekly'); renderTasks('monthly'); const count = document.getElementById('taskListDaily').querySelectorAll('.task-card').length; document.getElementById('todayCount').innerText = `${count} tasks`; }
+    function createTaskObj(text, priority, category, isTransferred = false) { return { id: Date.now() + Math.random(), text, priority, category, completed: false, timestamp: new Date().toISOString(), subtasks: [], isTransferred }; }
+    
+    function addTask(type) { 
+        let text, priority, category; 
+        if (type === 'daily') { 
+            const input = document.getElementById('quick_add_input'); 
+            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
+            if(!text) return; 
+            state.todos.push(createTaskObj(text, priority, category)); 
+            sortTasks(state.todos); input.value = ''; 
+            save(); renderAll(); 
+        } else { 
+            const input = document.getElementById('goalInputName'); 
+            text = input.value.trim(); priority = currentInput.priority; category = currentInput.category; 
+            if(!text) return; 
+            state.goals[type].push(createTaskObj(text, priority, category)); 
+            sortTasks(state.goals[type]); closeModal('addGoalModal'); 
+            save(); renderAll(); 
+        } 
+    }
+
+    function renderTasks(type) { 
+        const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly'); 
+        const container = document.getElementById(listId); container.innerHTML = ''; 
+        let source = type==='daily'?state.todos:state.goals[type]; 
+        if(state.activeFilter !== 'All') source = source.filter(t => t.category === state.activeFilter); 
+        if(source.length === 0) { container.innerHTML = `<div style="text-align:center; padding:15px; opacity:0.6; font-size:0.9rem;">No ${state.activeFilter!=='All'?state.activeFilter.toLowerCase():''} tasks</div>`; return; } 
+        
+        source.forEach((t) => { 
+            const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981'; 
+            const subCount = t.subtasks ? t.subtasks.length : 0; 
+            const subDone = t.subtasks ? t.subtasks.filter(s=>s.completed).length : 0; 
+            const progress = subCount > 0 ? (subDone/subCount)*100 : 0; 
+            const draggableAttr = type === 'daily' ? `draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${t.id})" ondragend="handleDragEnd(event)"` : ''; 
+            const dragHandle = type === 'daily' ? `<div class="drag-handle">::</div>` : ''; 
+            
+            let badgeHtml = '';
+            if (type === 'daily') {
+                if (t.isTransferred) badgeHtml = `<span class="meta-tag badge-transferred">Transferred</span>`;
+                else badgeHtml = `<span class="meta-tag badge-fresh">Fresh</span>`;
+            }
+
+            let subHtml = ''; 
+            if(t.subtasks && t.subtasks.length > 0) { 
+                t.subtasks.forEach((sub, sIdx) => { 
+                    subHtml += `
+                    <div class="sub-item">
+                        <div class="sub-check ${sub.completed?'checked':''}" onclick="toggleSubtask('${type}', ${t.id}, ${sIdx})"></div>
+                        <div class="sub-text" onclick="editSubtask('${type}', ${t.id}, ${sIdx})" style="${sub.completed?'text-decoration:line-through;opacity:0.6':''}">${sub.text}</div>
+                        <div class="sub-del" onclick="deleteSubtask('${type}', ${t.id}, ${sIdx})">×</div>
+                    </div>`; 
+                }); 
+            } 
+            
+            container.innerHTML += `
+            <div class="task-card ${type==='daily'?'draggable':''}" id="task-${t.id}" ${draggableAttr} data-id="${t.id}">
+                <div class="task-main-row">
+                    ${dragHandle}
+                    <div class="task-check ${t.completed?'checked':''}" onclick="toggleTask('${type}', ${t.id})"></div>
+                    <div class="task-body">
+                        <div class="task-txt ${t.completed?'done':''}">${t.text}</div>
+                        <div class="task-meta">
+                            <span class="p-dot" style="background:${pColor}"></span>
+                            <span class="meta-tag">${t.category}</span>
+                            ${badgeHtml}
+                            ${subCount > 0 ? `<span class="meta-tag" style="background:${varCSS('--accent-glow')}">${subDone}/${subCount}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <div class="action-icon" onclick="openEditTaskModal('${type}', ${t.id})" title="Edit">✎</div>
+                        <div class="action-icon" onclick="openReminderModal('${t.text}')" title="Remind">⏰</div>
+                        <div class="action-icon" onclick="toggleSubInput('${t.id}')" title="Subtasks">
+                            <div class="chevron-icon" id="chev-${t.id}">▼</div>
+                        </div>
+                        <div class="action-icon del" onclick="promptDelete('${type}', ${t.id})">🗑</div>
+                    </div>
+                </div>
+                <div class="subtask-area" id="sub-${t.id}">
+                    ${subCount > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${progress}%"></div></div>` : ''}
+                    <div id="sublist-${t.id}">${subHtml}</div>
+                    <div class="sub-input-row">
+                        <div style="font-size:0.9rem; opacity:0.5;">+</div>
+                        <input type="text" class="sub-input-main" placeholder="Add subtask..." onkeydown="addSubtask(event, '${type}', ${t.id})">
+                    </div>
+                </div>
+            </div>`; 
+        }); 
+    }
+    
+    function varCSS(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
+    
+    // --- UI INTERACTIONS ---
+    function toggleSubInput(id) { 
+        const el = document.getElementById(`sub-${id}`); 
+        const chev = document.getElementById(`chev-${id}`);
+        el.classList.toggle('active'); 
+        if(chev) chev.classList.toggle('rotated');
+        if(el.classList.contains('active')) {
+            const inp = el.querySelector('input');
+            if(inp) inp.focus();
+        }
+    }
+    
+    function addSubtask(e, type, parentId) { 
+        if(e.key !== 'Enter') return; 
+        const txt = e.target.value.trim(); 
+        if(!txt) return; 
+        const list = type==='daily'?state.todos:state.goals[type]; 
+        const task = list.find(t => t.id === parentId); 
+        if(task) { 
+            if(!task.subtasks) task.subtasks = []; 
+            task.subtasks.push({ text: txt, completed: false }); 
+            save(); renderAll(); 
+            // Re-open list
+            setTimeout(() => { 
+                document.getElementById(`sub-${parentId}`).classList.add('active'); 
+                document.getElementById(`chev-${parentId}`).classList.add('rotated');
+                document.querySelector(`#sub-${parentId} input`).focus();
+            }, 50); 
+        } 
+    }
+
+    // --- NEW EDITING LOGIC ---
+
+    // 1. Edit Main Task
+    function openEditTaskModal(type, id) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === id);
+        if(!task) return;
+
+        editingTaskInfo = { type, id };
+        
+        document.getElementById('editTaskTitle').value = task.text;
+        
+        // Setup Priority Chips
+        const pContainer = document.getElementById('editPriorityChips');
+        pContainer.innerHTML = '';
+        ['low', 'med', 'high'].forEach(p => {
+            pContainer.innerHTML += `<div class="chip p-${p} ${task.priority === p ? 'active' : ''}" onclick="setEditPriority('${p}')">${p.charAt(0).toUpperCase() + p.slice(1)}</div>`;
+        });
+        
+        // Setup Category Chips
+        const cContainer = document.getElementById('editCategoryChips');
+        cContainer.innerHTML = '';
+        state.categories.forEach(c => {
+            cContainer.innerHTML += `<div class="chip ${task.category === c ? 'active' : ''}" onclick="setEditCategory(this, '${c}')">${c}</div>`;
+        });
+
+        openModal('editTaskModal');
+    }
+
+    function setEditPriority(val) {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        if(task) task.priority = val;
+        // Re-render chips
+        openEditTaskModal(editingTaskInfo.type, editingTaskInfo.id);
+    }
+
+    function setEditCategory(el, val) {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        if(task) task.category = val;
+        // Visual Update
+        el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    function saveTaskEdit() {
+        if(!editingTaskInfo) return;
+        const list = editingTaskInfo.type === 'daily' ? state.todos : state.goals[editingTaskInfo.type];
+        const task = list.find(t => t.id === editingTaskInfo.id);
+        const newTitle = document.getElementById('editTaskTitle').value.trim();
+        
+        if(task && newTitle) {
+            task.text = newTitle;
+            // Priority/Cat already updated in memory via setter functions, just save state
+            save();
+            renderAll();
+            closeModal('editTaskModal');
+        }
+    }
+
+    // 2. Edit Subtask
+    function editSubtask(type, taskId, subIdx) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if (!task || !task.subtasks[subIdx]) return;
+
+        const subItemDiv = document.querySelector(`#sub-${taskId} .sub-item:nth-child(${subIdx + 1})`);
+        const textDiv = subItemDiv.querySelector('.sub-text');
+        
+        // Swap text for input
+        const currentText = task.subtasks[subIdx].text;
+        textDiv.outerHTML = `<input type="text" class="sub-text-input" value="${currentText}" 
+            onblur="saveSubtaskEdit('${type}', ${taskId}, ${subIdx}, this.value)" 
+            onkeydown="if(event.key==='Enter') this.blur()">`;
+        
+        const input = subItemDiv.querySelector('input');
+        input.focus();
+    }
+
+    function saveSubtaskEdit(type, taskId, subIdx, newText) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if(task && task.subtasks[subIdx]) {
+            if (newText.trim() === "") {
+                // Optional: Delete if empty? keeping it simple for now, revert
+            } else {
+                task.subtasks[subIdx].text = newText.trim();
+            }
+            save();
+            renderAll();
+            // Keep open
+            setTimeout(() => { 
+                document.getElementById(`sub-${taskId}`).classList.add('active'); 
+                document.getElementById(`chev-${taskId}`).classList.add('rotated');
+            }, 50);
+        }
+    }
+
+    function deleteSubtask(type, taskId, subIdx) {
+        const list = type === 'daily' ? state.todos : state.goals[type];
+        const task = list.find(t => t.id === taskId);
+        if(task && task.subtasks[subIdx]) {
+            task.subtasks.splice(subIdx, 1);
+            save();
+            renderAll();
+            setTimeout(() => { 
+                document.getElementById(`sub-${taskId}`).classList.add('active'); 
+                document.getElementById(`chev-${taskId}`).classList.add('rotated');
+            }, 50);
+        }
+    }
+
+    function toggleSubtask(type, parentId, subIdx) { const list = type==='daily'?state.todos:state.goals[type]; const task = list.find(t => t.id === parentId); if(task && task.subtasks[subIdx]) { task.subtasks[subIdx].completed = !task.subtasks[subIdx].completed; save(); renderAll(); setTimeout(() => { document.getElementById(`sub-${parentId}`).classList.add('active'); document.getElementById(`chev-${parentId}`).classList.add('rotated'); }, 0); } }
+    
+    function handleDragStart(e, id) { dragSrcEl = e.target.closest('.task-card'); dragSrcEl.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); }
+    function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; document.getElementById('taskListDaily').classList.add('drag-over'); return false; }
+    function handleDragEnd(e) { if(dragSrcEl) dragSrcEl.classList.remove('dragging'); document.getElementById('taskListDaily').classList.remove('drag-over'); }
+    function handleDrop(e, targetId) { e.stopPropagation(); const srcId = parseFloat(e.dataTransfer.getData('text/plain')); if(srcId === targetId) return; const srcIdx = state.todos.findIndex(t => t.id === srcId); const tgtIdx = state.todos.findIndex(t => t.id === targetId); if(srcIdx >= 0 && tgtIdx >= 0) { const item = state.todos.splice(srcIdx, 1)[0]; state.todos.splice(tgtIdx, 0, item); save(); renderAll(); } return false; }
+    function requestNotificationPermission() { if (!("Notification" in window)) { showToast("Browser does not support notifications"); return; } Notification.requestPermission().then(permission => { if (permission === "granted") { document.getElementById('notifBtn').classList.add('active'); showToast("Notifications enabled!"); new Notification("Task Master", { body: "You are all set!" }); } else { showToast("Notifications blocked. Check browser settings."); } }); }
+    function openReminderModal(text) { pendingReminderTask = text; openModal('reminderModal'); }
+    function confirmReminder(minutes) { closeModal('reminderModal'); if (!pendingReminderTask) return; const ms = minutes * 60 * 1000; showToast(`Reminder set for ${minutes} minutes`); setTimeout(() => { playNotificationSound(); if (Notification.permission === "granted") { new Notification("Reminder: " + pendingReminderTask, { body: "Time's up! Get back to work.", icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png' }); } else { showToast("⏰ Reminder: " + pendingReminderTask); } }, ms); }
+    function showToast(msg) { const c = document.getElementById('toastContainer'); const t = document.createElement('div'); t.className = 'toast'; t.innerText = msg; c.appendChild(t); setTimeout(() => t.classList.add('visible'), 10); setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 300); }, 3000); }
+    function playNotificationSound() { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine'; osc.frequency.setValueAtTime(440, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1); gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5); osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5); }
+    function toggleTask(type, id) { const originalSource = type==='daily'?state.todos:state.goals[type]; const t = originalSource.find(x => x.id === id); if(t) { t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); } }
+    function promptDelete(type, id) { showConfirm("Delete this item?", () => { const el = document.getElementById(`task-${id}`); if(el) el.classList.add('deleting'); setTimeout(() => { if(type === 'daily') state.todos = state.todos.filter(x => x.id !== id); else state.goals[type] = state.goals[type].filter(x => x.id !== id); save(); renderAll(); }, 300); }); }
+    function renderFilters() { const container = document.getElementById('filterContainer'); container.innerHTML = ''; const filters = ['All', ...state.categories]; filters.forEach(f => { container.innerHTML += `<div class="filter-chip ${state.activeFilter===f ? 'active' : ''}" onclick="setFilter('${f}')">${f}</div>`; }); }
+    function setFilter(filter) { state.activeFilter = filter; if(filter !== 'All') { currentInput.category = filter; state.config.lastCategory = filter; save(); renderCategories(); } renderAll(); }
+    function renderCategories() { const container = document.getElementById('catContainer'); container.innerHTML = ''; state.categories.forEach(cat => { container.innerHTML += `<div class="chip ${currentInput.category===cat?'active':''}" onclick="setCategory(this, '${cat}')">${cat}</div>`; }); }
+    function openCatManager() { const list = document.getElementById('catManagerList'); list.innerHTML = ''; state.categories.forEach((cat, idx) => { list.innerHTML += `<div class="cat-item-ui"><span style="font-weight:600; color:var(--text-primary)">${cat}</span><div class="cat-actions"><div class="cat-icon-btn" onclick="promptRenameCategory(${idx})" style="color:var(--accent)">✎</div><div class="cat-icon-btn" onclick="promptDeleteCategory(${idx})" style="color:var(--danger)">🗑</div></div></div>`; }); openModal('catManagerModal'); }
+    function promptAddCategory() { closeModal('catManagerModal'); showInputModal("New Category", "Name...", (val) => { if(state.categories.includes(val)) return alert('Exists!'); state.categories.push(val); save(); renderAll(); openCatManager(); }); }
+    function promptRenameCategory(idx) { const oldName = state.categories[idx]; closeModal('catManagerModal'); showInputModal("Rename Category", oldName, (newName) => { state.categories[idx] = newName; const updateCat = (list) => list.forEach(t => { if(t.category === oldName) t.category = newName; }); updateCat(state.todos); updateCat(state.goals.weekly); updateCat(state.goals.monthly); if(currentInput.category === oldName) { currentInput.category = newName; state.config.lastCategory = newName; } if(state.activeFilter === oldName) state.activeFilter = newName; save(); renderAll(); openCatManager(); }); }
+    function promptDeleteCategory(idx) { if(state.categories.length <= 1) return alert("Keep at least one."); closeModal('catManagerModal'); showConfirm(`Delete "${state.categories[idx]}"?`, () => { const catName = state.categories[idx]; state.categories.splice(idx, 1); const fallback = state.categories[0]; const fixCat = (list) => list.forEach(t => { if(t.category === catName) t.category = fallback; }); fixCat(state.todos); fixCat(state.goals.weekly); fixCat(state.goals.monthly); if(currentInput.category === catName) { currentInput.category = fallback; state.config.lastCategory = fallback; } if(state.activeFilter === catName) state.activeFilter = 'All'; save(); renderAll(); openCatManager(); }); }
+    function setGraph(mode) { state.graphMode = mode; document.getElementById('btn-week').classList.toggle('active', mode==='week'); document.getElementById('btn-month').classList.toggle('active', mode==='month'); document.getElementById('chartBars').classList.toggle('month-view', mode==='month'); renderGraph(); }
+    
+    function openHistoryDetail(dateKey) { 
+        document.getElementById('histDateTitle').innerText = new Date(dateKey + 'T00:00:00').toDateString(); 
+        const list = document.getElementById('histContent'); list.innerHTML = ''; 
+        let items = []; 
+        const todayKey = new Date().toLocaleDateString('en-CA'); 
+        const filterFn = (t) => (state.activeFilter === 'All' || t.category === state.activeFilter); 
+        
+        if (dateKey === todayKey) {
+            state.todos.filter(filterFn).forEach(t => items.push({ 
+                text: t.text, 
+                done: t.completed, 
+                cat: t.category, 
+                type: t.isTransferred ? 'Transferred 📥' : 'Fresh' 
+            })); 
+        } else if (state.archives[dateKey]) { 
+            if(state.archives[dateKey].completed) state.archives[dateKey].completed.filter(filterFn).forEach(t => items.push({ text: t.text, done: true, cat: t.category, type: 'Completed' })); 
+            if(state.archives[dateKey].missed) state.archives[dateKey].missed.filter(filterFn).forEach(t => {
+                const isTransferredOut = state.archives[dateKey].transferred && state.archives[dateKey].transferred.some(tr => tr.id === t.id);
+                items.push({ text: t.text, done: false, cat: t.category, type: isTransferredOut ? 'Transferred Out 📤' : 'Missed' }); 
+            }); 
+        } 
+        
+        if(items.length === 0) list.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No records for filter: '+state.activeFilter+'</div>'; 
+        else items.forEach(item => { 
+            list.innerHTML += `<div class="hist-item"><div class="hist-status ${item.done ? 'status-done' : 'status-missed'}" style="background:${item.done?'var(--success)':'var(--danger)'}"></div><div style="flex:1"><div style="${!item.done ? 'color:var(--danger)' : ''}">${item.text}</div><div style="font-size:0.7rem; color:var(--text-secondary)">${item.cat} • ${item.type}</div></div></div>`; 
+        }); 
+        openModal('historyModal'); 
+    }
+
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    function updateCloudUI(s, t) { document.getElementById('cloudIndicator').style.display='flex'; document.getElementById('cloudText').innerText=t; document.getElementById('cloudDot').className=`status-dot ${s}`; }
+    function showInputModal(title, placeholder, callback) { document.getElementById('catInputTitle').innerText = title; const input = document.getElementById('catInputField'); input.value = ''; input.placeholder = placeholder; const btn = document.getElementById('catInputConfirm'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { if(input.value.trim()) { callback(input.value.trim()); closeModal('catInputModal'); } }; openModal('catInputModal'); setTimeout(() => input.focus(), 100); }
+    function openAddGoalModal(type) { document.getElementById('goalModalTitle').innerText = `Add ${type==='weekly'?'Weekly':'Monthly'} Goal`; document.getElementById('goalInputName').value = ''; const btn = document.getElementById('btnSaveGoal'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => addTask(type); openModal('addGoalModal'); setTimeout(() => document.getElementById('goalInputName').focus(), 100); }
+    function showConfirm(text, onConfirm) { document.getElementById('confirmText').innerText = text; const btn = document.getElementById('confirmActionBtn'); const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); newBtn.onclick = () => { onConfirm(); closeModal('confirmModal'); }; openModal('confirmModal'); }
+    function setPriority(el, val) { currentInput.priority = val; state.config.lastPriority = val; save(); el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
+    function setCategory(el, val) { currentInput.category = val; state.config.lastCategory = val; save(); renderCategories(); }
+    function toggleTheme() { state.theme = state.theme === 'light' ? 'dark' : 'light'; document.documentElement.setAttribute('data-theme', state.theme); save(); }
     function toggleFocusMode() { document.body.classList.toggle('focus-active'); }
-    function toggleTheme() { state.theme = state.theme==='light'?'dark':'light'; init(); } // Re-init to apply
-    function rainConfetti() { for(let i=0; i<20; i++){ const c = document.createElement('div'); c.className='confetti'; c.style.left=Math.random()*100+'vw'; c.style.background=i%2?'#6366f1':'#10b981'; document.body.appendChild(c); setTimeout(()=>c.remove(), 2000); } }
-
-    // --- CRUD OPS ---
-    function toggleSub(id) { document.getElementById(`sub-${id}`).classList.toggle('active'); }
-    function addSub(e, type, id) { const t = (type==='daily'?state.todos:state.goals[type]).find(x=>x.id===id); t.subtasks.push({text:e.target.value, completed:false}); save(); render(); }
-    function togSub(type, tid, idx) { const t = (type==='daily'?state.todos:state.goals[type]).find(x=>x.id===tid); t.subtasks[idx].completed = !t.subtasks[idx].completed; save(); render(); }
-    function delSub(type, tid, idx) { const t = (type==='daily'?state.todos:state.goals[type]).find(x=>x.id===tid); t.subtasks.splice(idx,1); save(); render(); }
-    function delTask(type, id) { if(!confirm('Delete?')) return; if(type==='daily') state.todos=state.todos.filter(x=>x.id!==id); else state.goals[type]=state.goals[type].filter(x=>x.id!==id); recalcStats(); save(); render(); }
-    
-    function editTask(type, id) { editingType=type; editingId=id; const t = (type==='daily'?state.todos:state.goals[type]).find(x=>x.id===id); document.getElementById('editTaskTitle').value = t.text; openModal('editTaskModal'); }
-    function saveTaskEdit() { const t = (editingType==='daily'?state.todos:state.goals[editingType]).find(x=>x.id===editingId); t.text = document.getElementById('editTaskTitle').value; closeModal('editTaskModal'); save(); render(); }
-
-    function openCatManager() { document.getElementById('catManagerList').innerHTML = state.categories.map((c,i) => `<div>${c} <span onclick="state.categories.splice(${i},1);save();openCatManager()">🗑</span></div>`).join(''); openModal('catManagerModal'); }
-    function promptAddCategory() { const n = prompt('Name:'); if(n) { state.categories.push(n); save(); openCatManager(); render(); } }
-    function openAddGoalModal(t) { document.getElementById('goalModalTitle').innerText = 'Add '+t; document.getElementById('btnSaveGoal').onclick = () => addTask(t); openModal('addGoalModal'); }
-
-    // --- DRAG ---
-    function sortTasks(l) { const m = {high:3, med:2, low:1}; l.sort((a,b) => m[b.priority] - m[a.priority]); }
-    function dragStart(e, id) { e.dataTransfer.setData('text', id); }
-    function drop(e, targetId, type) { e.preventDefault(); const srcId = parseInt(e.dataTransfer.getData('text')); const list = type==='daily'?state.todos:state.goals[type]; const srcIdx = list.findIndex(x=>x.id===srcId); const tgtIdx = list.findIndex(x=>x.id===targetId); if(srcIdx>-1 && tgtIdx>-1) { const [moved] = list.splice(srcIdx, 1); list.splice(tgtIdx, 0, moved); save(); render(); } }
-
-    // --- EXPORT/IMPORT ---
-    function exportData() { const a = document.createElement('a'); a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state)); a.download = 'backup.json'; a.click(); }
-    function triggerImport() { document.getElementById('importFile').click(); }
-    function handleFileLoad(input) { const r = new FileReader(); r.onload = e => { state = JSON.parse(e.target.result); save(); location.reload(); }; r.readAsText(input.files[0]); }
-
-    const s = document.createElement('style'); s.innerHTML = `@keyframes fall { to { transform: translateY(100vh) rotate(360deg); } } .confetti { animation: fall 2s linear forwards; }`; document.head.appendChild(s);
+    function rainConfetti() { const colors = ['#ef4444', '#6366f1', '#10b981', '#f59e0b', '#ec4899']; for(let i=0; i<30; i++) { const c = document.createElement('div'); c.classList.add('confetti'); c.style.left = Math.random() * 100 + 'vw'; c.style.background = colors[Math.floor(Math.random()*colors.length)]; c.style.animation = `fall ${Math.random()*2+1}s linear`; document.body.appendChild(c); setTimeout(() => c.remove(), 3000); } if(!document.getElementById('c-style')) { const s = document.createElement('style'); s.id = 'c-style'; s.innerHTML = `@keyframes fall { to { transform: translateY(105vh) rotate(360deg); } }`; document.head.appendChild(s); } }
 
     init();
 </script>
