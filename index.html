@@ -387,12 +387,19 @@
         <button class="data-btn" onclick="triggerImport()"><span class="data-icon">📤</span><div><div style="font-size:0.95rem">Restore Local Backup</div><div style="font-size:0.75rem; color:var(--text-secondary); font-weight:400">Import .json file</div></div></button>
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
-            <div style="display:flex; justify-content:space-between; align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem; color:var(--accent);">Get Key</a></div>
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Master Key (starts with $2...)</label>
-            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key here..." onchange="saveSyncConfig()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Bin ID (Leave empty to create new)</label>
-            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID here..." onchange="saveSyncConfig()">
-            <div class="modal-btns"><button class="btn-base btn-confirm" id="btnCloudUpload" onclick="cloudUpload(false)">Force Upload</button><button class="btn-base btn-confirm" id="btnCloudDownload" style="background:#0ea5e9" onclick="cloudDownload(false)">Force Download</button></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="sync-label">🔥 Cloud Sync (Firebase)</span>
+                <a href="https://console.firebase.google.com" target="_blank" style="font-size:0.7rem; color:var(--accent);">Console</a>
+            </div>
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Firebase Config JSON</label>
+            <textarea class="sync-input" id="firebaseConfig" placeholder='{"apiKey": "...", "databaseURL": "..."}' style="height:60px; font-family:monospace; font-size:0.7rem;" onchange="saveSyncConfig()"></textarea>
+            
+            <label class="sync-label" style="font-weight:400; font-size:0.7rem;">Sync ID (Secret Phrase)</label>
+            <input type="text" class="sync-input" id="syncId" placeholder="my-secret-task-list" onchange="saveSyncConfig()">
+            
+            <div class="modal-btns">
+                <button class="btn-base btn-confirm" onclick="initFirebase(true)">Connect & Sync</button>
+            </div>
             <div id="syncStatus" style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;"></div>
         </div>
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
@@ -446,6 +453,9 @@
 <button class="focus-fab" onclick="toggleFocusMode()" title="Focus Mode (F)">🎯</button>
 <button class="theme-fab" onclick="toggleTheme()" title="Toggle Theme">🌓</button>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
     const STABLE_KEY = 'tm_universal_store';
     const LEGACY_KEYS = ['tm_v18_data', 'tm_v16_data', 'tm_v15_data', 'tm_v11_data'];
@@ -484,9 +494,9 @@
 
         sortTasks(state.todos); sortTasks(state.goals.weekly); sortTasks(state.goals.monthly);
 
-        const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
-        if(syncConfig.apiKey) document.getElementById('app_token_field').value = syncConfig.apiKey;
-        if(syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
+        const savedFb = JSON.parse(localStorage.getItem('tm_firebase_config') || '{}');
+        if(savedFb.configStr) document.getElementById('firebaseConfig').value = savedFb.configStr;
+        if(savedFb.syncId) document.getElementById('syncId').value = savedFb.syncId;
 
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
@@ -495,23 +505,16 @@
         renderAll();
 
         if("Notification" in window && Notification.permission === "granted") document.getElementById('notifBtn').classList.add('active');
-        if(syncConfig.apiKey && syncConfig.binId) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Cloud Active'); cloudDownload(true); }
+        
+        // Initialize Firebase
+        initFirebase(false);
         
         let focusTimer;
         // FIXED: Enhanced visibility listener to force save on exit
         document.addEventListener("visibilitychange", () => { 
             if (document.visibilityState === "visible") { 
                 checkDayRollover(); 
-                clearTimeout(focusTimer); 
-                focusTimer = setTimeout(() => { 
-                    const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
-                    if(syncConfig.apiKey && syncConfig.binId) cloudDownload(true); 
-                }, 1000); 
-            } else if (document.visibilityState === "hidden") {
-                if(isDirty) {
-                    clearTimeout(syncTimer);
-                    cloudUpload(true);
-                }
+                clearTimeout(focusTimer);
             }
         });
 
@@ -636,126 +639,87 @@
         });
     }
 
-    // --- CORE SAVE & SYNC ---
+    // --- CORE SAVE & SYNC (FIREBASE) ---
+    let dbRef = null;
+
     function save() { 
         state.updatedAt = Date.now(); 
         localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
         isDirty = true; 
-        triggerAutoSync(); 
+        if(dbRef) pushToFirebase();
     }
     
-    function triggerAutoSync() {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        if(!apiKey || !binId || binId.length < 10) return;
-        
-        updateCloudUI('syncing', 'Syncing...');
-        clearTimeout(syncTimer);
-        // FIXED: Reduced delay to 1s
-        syncTimer = setTimeout(() => { cloudUpload(true); }, 1000);
+    function saveSyncConfig() {
+        const configStr = document.getElementById('firebaseConfig').value.trim();
+        const syncId = document.getElementById('syncId').value.trim();
+        localStorage.setItem('tm_firebase_config', JSON.stringify({ configStr, syncId }));
     }
 
-    function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
-    function saveSyncConfig() { const apiKey = document.getElementById('app_token_field').value.trim(); const binId = document.getElementById('syncBinId').value.trim(); localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId })); if(apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); } }
-    
-    // FIXED: Added keepalive:true to ensure PC syncing survives tab closes
-    async function cloudUpload(isSilent) {
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        let binId = document.getElementById('syncBinId').value.trim();
-        const statusEl = document.getElementById('syncStatus');
-        
-        if(!apiKey) return;
-        if(!isSilent) statusEl.innerText = "Uploading...";
-        
+    function initFirebase(manual) {
+        const stored = JSON.parse(localStorage.getItem('tm_firebase_config') || '{}');
+        const configStr = document.getElementById('firebaseConfig').value.trim() || stored.configStr;
+        const syncId = document.getElementById('syncId').value.trim() || stored.syncId;
+
+        if(manual) {
+             document.getElementById('firebaseConfig').value = configStr || '';
+             document.getElementById('syncId').value = syncId || '';
+        }
+
+        if(!configStr || !syncId) return;
+
         try {
-            const headers = { 'Content-Type': 'application/json', 'X-Master-Key': apiKey };
+            const config = JSON.parse(configStr);
+            if(!firebase.apps.length) firebase.initializeApp(config);
+            const db = firebase.database();
+            dbRef = db.ref('taskmaster/' + syncId);
             
-            if(!binId) {
-                const req = await fetch('https://api.jsonbin.io/v3/b', { 
-                    method: 'POST', 
-                    headers: headers, 
-                    body: JSON.stringify(state),
-                    keepalive: true 
-                });
-                const res = await req.json();
-                if(req.ok) { 
-                    binId = res.metadata.id; 
-                    document.getElementById('syncBinId').value = binId; 
-                    saveSyncConfig(); 
-                    isDirty = false; 
-                    if(!isSilent) statusEl.innerHTML = `<span style="color:var(--success)">Created! Bin ID: ${binId}</span>`; 
-                    updateCloudUI('success', 'Saved'); 
-                } else throw new Error(res.message);
-            } else {
-                const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, { 
-                    method: 'PUT', 
-                    headers: headers, 
-                    body: JSON.stringify(state),
-                    keepalive: true 
-                });
-                if(req.ok) { 
-                    isDirty = false; 
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Synced!</span>'; 
-                    updateCloudUI('success', 'Saved'); 
-                } else throw new Error("Update Failed");
-            }
-        } catch(e) { 
-            if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; 
-            updateCloudUI('error', 'Error'); 
+            document.getElementById('cloudIndicator').style.display = 'flex';
+            updateCloudUI('syncing', 'Connecting...');
+            document.getElementById('syncStatus').innerText = "Connecting...";
+
+            dbRef.on('value', (snapshot) => {
+                const remoteData = snapshot.val();
+                if(remoteData) {
+                    // Check if remote is newer
+                    if((remoteData.updatedAt || 0) > (state.updatedAt || 0)) {
+                        state = remoteData;
+                        localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+                        renderAll();
+                        updateCloudUI('success', 'Synced');
+                        document.getElementById('syncStatus').innerHTML = '<span style="color:var(--success)">Synced with Cloud!</span>';
+                        isDirty = false;
+                    } else {
+                         updateCloudUI('success', 'Connected');
+                         document.getElementById('syncStatus').innerHTML = '<span style="color:var(--success)">Connected</span>';
+                    }
+                } else {
+                    // No remote data, upload local
+                    pushToFirebase();
+                }
+            }, (error) => {
+                updateCloudUI('error', 'Auth Error');
+                document.getElementById('syncStatus').innerHTML = `<span style="color:var(--danger)">${error.message}</span>`;
+            });
+            
+        } catch(e) {
+            if(manual) alert("Invalid Config JSON: " + e.message);
+            updateCloudUI('error', 'Config Error');
         }
     }
 
-    async function cloudDownload(isSilent) {
-        if (isDirty) { cloudUpload(true); return; }
-
-        const apiKey = document.getElementById('app_token_field').value.trim();
-        const binId = document.getElementById('syncBinId').value.trim();
-        const statusEl = document.getElementById('syncStatus');
-        if(!apiKey || !binId || binId.length < 10) return;
-        if(!isSilent) statusEl.innerText = "Downloading...";
-        if(isSilent) updateCloudUI('syncing', 'Checking...');
-        
-        try {
-            const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
-            const res = await req.json();
-            if(req.ok) {
-                const remote = res.record;
-                const localTime = state.updatedAt || 0;
-                const remoteTime = remote.updatedAt || 0;
-
-                if(remoteTime > localTime) {
-                    const mergedTodos = [...state.todos, ...remote.todos];
-                    const uniqueTodosMap = new Map();
-                    mergedTodos.forEach(t => { if (!uniqueTodosMap.has(t.id)) uniqueTodosMap.set(t.id, t); else uniqueTodosMap.set(t.id, t); });
-                    
-                    const mergeGoals = (local, remote) => {
-                        const map = new Map();
-                        [...local, ...(remote || [])].forEach(g => map.set(g.id, g));
-                        return Array.from(map.values());
-                    };
-
-                    state.todos = Array.from(uniqueTodosMap.values());
-                    state.goals.weekly = mergeGoals(state.goals.weekly, remote.goals.weekly);
-                    state.goals.monthly = mergeGoals(state.goals.monthly, remote.goals.monthly);
-                    state.archives = { ...state.archives, ...remote.archives };
-                    state.updatedAt = remote.updatedAt;
-
-                    if(!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
-                    currentInput.priority = state.config.lastPriority;
-                    currentInput.category = state.config.lastCategory;
-                    
-                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
-                    renderAll();
-                    if(!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Data Merged!</span>';
-                    updateCloudUI('success', 'Updated');
-                } else if (JSON.stringify(remote) === JSON.stringify(state)) {
-                    updateCloudUI('success', 'Synced');
-                } else {
-                    updateCloudUI('success', 'Local > Cloud');
-                }
-            } else throw new Error(res.message);
-        } catch(e) { if(!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); }
+    function pushToFirebase() {
+        if(!dbRef) return;
+        updateCloudUI('syncing', 'Syncing...');
+        dbRef.set(state).then(() => {
+            updateCloudUI('success', 'Saved');
+            isDirty = false;
+        }).catch(e => {
+            updateCloudUI('error', 'Error');
+            document.getElementById('syncStatus').innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+        });
     }
+
+    function updateCloudUI(status, text) { const div = document.getElementById('cloudIndicator'); const dot = document.getElementById('cloudDot'); const txt = document.getElementById('cloudText'); div.style.display = 'flex'; txt.innerText = text; dot.className = 'status-dot'; if(status === 'syncing') dot.classList.add('syncing'); if(status === 'success') dot.classList.add('success'); if(status === 'error') dot.classList.add('error'); }
 
     function exportData() { const dataStr = JSON.stringify(state, null, 2); const blob = new Blob([dataStr], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `taskmaster_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
     function triggerImport() { document.getElementById('importFile').click(); }
