@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v33 (Edit & Polish)</title>
+    <title>Task Master v33 (Fixed Sync)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -446,23 +446,6 @@
 <button class="focus-fab" onclick="toggleFocusMode()" title="Focus Mode (F)">🎯</button>
 <button class="theme-fab" onclick="toggleTheme()" title="Toggle Theme">🌓</button>
 
-Based on the code provided, the issue is a **logic race condition** in your initialization and sync process.
-
-**The Problem:**
-
-1. When the app loads, `init()` calls `checkDayRollover()`.
-2. `checkDayRollover()` calls `save()` **every single time**, even if the date hasn't changed.
-3. `save()` sets the flag `isDirty = true`.
-4. Immediately after, `init()` calls `cloudDownload()`.
-5. Inside `cloudDownload()`, you have this line: `if (isDirty) { cloudUpload(true); return; }`.
-
-**The Result:** The app *always* thinks it has unsaved local changes on startup. It aborts the download and tries to upload instead. You never pull the latest data from the cloud because your local "save" logic blocks it.
-
-Here is the **corrected Script section**. I have optimized the `checkDayRollover` to stop auto-saving unnecessarily and fixed the `cloudDownload` logic to allow merging.
-
-### Replace your `<script>` tag with this corrected version:
-
-```html
 <script>
     const STABLE_KEY = 'tm_universal_store';
     const LEGACY_KEYS = ['tm_v18_data', 'tm_v16_data', 'tm_v15_data', 'tm_v11_data'];
@@ -508,7 +491,7 @@ Here is the **corrected Script section**. I have optimized the `checkDayRollover
         document.documentElement.setAttribute('data-theme', state.theme);
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
         
-        checkDayRollover(); // This now only saves if necessary
+        checkDayRollover(); // FIXED: This now only saves if necessary
         renderAll();
 
         if("Notification" in window && Notification.permission === "granted") document.getElementById('notifBtn').classList.add('active');
@@ -561,6 +544,7 @@ Here is the **corrected Script section**. I have optimized the `checkDayRollover
             state.lastLoginDate = todayKey;
             save();
         }
+        // Else: Do nothing, do not save. (Prevents dirty flag on startup)
     }
 
     function handleRollover(action) {
@@ -1067,7 +1051,5 @@ Here is the **corrected Script section**. I have optimized the `checkDayRollover
 
     init();
 </script>
-
-```
 </body>
 </html>
