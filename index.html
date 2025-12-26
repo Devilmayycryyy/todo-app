@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v35 (Final Stable)</title>
+    <title>Task Master v36 (Stable Connection)</title>
     <style>
         :root {
             --bg-body: #f1f5f9; --bg-card: #ffffff; --text-primary: #1e293b; --text-secondary: #64748b;
@@ -18,7 +18,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); -webkit-tap-highlight-color: transparent; }
         body { background-color: var(--bg-body); color: var(--text-primary); transition: 0.3s; min-height: 100vh; padding: 20px 10px 100px 10px; overflow-x: hidden; }
         
-        /* Focus Mode Handling */
         body.focus-active .header-card, body.focus-active .goals-wrapper, body.focus-active .graph-toggle, body.focus-active .settings-btn { display: none !important; }
         body.focus-active .container { max-width: 600px; margin-top: 10vh; }
         body.focus-active .sticky-wrapper { position: static; background: transparent !important; box-shadow: none !important; border: none; }
@@ -38,6 +37,7 @@
         .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
         .status-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
         .status-dot.success { background: var(--success); }
+        .status-dot.error { background: var(--danger); }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
         .chart-wrapper { position: relative; height: 200px; width: 100%; border-bottom: 1px solid var(--border); display: flex; align-items: flex-end; }
@@ -192,9 +192,10 @@
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
         <div class="sync-section">
             <div style="font-size:0.8rem; font-weight:700; margin-bottom:5px;">Firebase Config</div>
-            <textarea class="sync-input" id="firebaseConfig" placeholder='{"apiKey": "..."}' style="height:60px;"></textarea>
-            <input type="text" class="sync-input" id="syncId" placeholder="Secret ID">
+            <textarea class="sync-input" id="firebaseConfig" placeholder='{"apiKey": "AIzaSy...", "databaseURL": "https://..."}' style="height:60px;"></textarea>
+            <input type="text" class="sync-input" id="syncId" placeholder="Secret ID (e.g. 'my-notes')">
             <button class="btn-base btn-confirm" onclick="initFirebase(true)">Sync Now</button>
+            <div id="connectionMsg" style="margin-top:5px; font-size:0.75rem; color:var(--text-secondary)"></div>
         </div>
         <button class="btn-base btn-cancel" style="width:100%; margin-top:15px;" onclick="closeModal('settingsModal')">Close</button>
     </div>
@@ -208,12 +209,12 @@
 <button class="focus-fab" onclick="toggleFocusMode()">🎯</button>
 <button class="theme-fab" onclick="toggleTheme()">🌓</button>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
     // --- CORE STATE ---
-    const KEY = 'tm_v35_store';
+    const KEY = 'tm_v36_store';
     let state = { todos: [], goals: { weekly: [], monthly: [] }, dailyStats: {}, categories: ['Personal', 'Work'], theme: 'light', graphMode: 'week', activeFilter: 'All' };
     let inputs = { priority: 'low', category: 'Personal' };
     let dbRef = null, syncTimer = null, editingId = null, editingType = null, rolloverTasks = [];
@@ -250,21 +251,30 @@
         });
     }
 
-    // --- SYNC ENGINE (FIXED) ---
+    // --- SYNC ENGINE (STABLE v8) ---
     function initFirebase(manual) {
         const str = document.getElementById('firebaseConfig').value.trim();
         const id = document.getElementById('syncId').value.trim();
         if(!str || !id) return;
         
         localStorage.setItem('tm_firebase_config', JSON.stringify({ str, id }));
+        updateCloudUI('syncing', 'Connecting...');
+        
+        // Timeout to prevent infinite spinner
+        const timeout = setTimeout(() => {
+            if(document.getElementById('cloudText').innerText === 'Connecting...') {
+                updateCloudUI('error', 'Connection Timeout');
+                if(manual) alert("Could not connect. Check your internet or API Config.");
+            }
+        }, 8000);
+
         try {
             if(!firebase.apps.length) firebase.initializeApp(JSON.parse(str));
-            dbRef = firebase.database().ref('tm_v35/' + id);
-            
-            updateCloudUI('syncing', 'Connecting...');
+            dbRef = firebase.database().ref('tm_v36/' + id);
             
             // LISTENER: Trusts the cloud implicitly
             dbRef.on('value', snap => {
+                clearTimeout(timeout);
                 const val = snap.val();
                 if(val) {
                     isSyncingDown = true; // Block loop
@@ -279,8 +289,10 @@
                 }
             });
         } catch(e) { 
-            if(manual) alert("Config Invalid"); 
-            updateCloudUI('error', 'Error');
+            clearTimeout(timeout);
+            console.error(e);
+            if(manual) alert("Invalid JSON Config. Ensure it starts with { and ends with }"); 
+            updateCloudUI('error', 'Config Error');
         }
     }
 
@@ -300,7 +312,6 @@
 
     // --- LOGIC ---
     function recalcStats() {
-        // Force calculation of today's stats based on actual tasks
         const k = new Date().toISOString().split('T')[0]; // Strict YYYY-MM-DD
         const t = state.todos;
         state.dailyStats[k] = { total: t.length, done: t.filter(x=>x.completed).length };
@@ -358,7 +369,7 @@
         save(); render();
     }
 
-    // --- RENDERERS ---
+    // --- RENDERERS (FIXED LABELS) ---
     function render() {
         // Graph
         const c = document.getElementById('chartBars'); c.innerHTML = '';
@@ -371,11 +382,18 @@
             const stat = state.dailyStats[k] || {total:0, done:0};
             const h = stat.total ? (stat.done/stat.total)*100 : 0;
             const col = h===100 ? 'var(--success)' : (h>0 ? 'var(--accent)' : '#eee');
+            
+            // LABEL LOGIC FIXED HERE
+            let label = d.getDate();
+            if(state.graphMode === 'week') {
+                label = d.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
+            }
+
             c.innerHTML += `
             <div class="bar-group">
                 <div class="count-label">${stat.done}/${stat.total}</div>
                 <div class="bar-stack" style="height:100px"><div class="bar-segment" style="height:${Math.max(h,5)}%; background:${col}"></div></div>
-                <div class="bar-label" style="${i===0?'color:var(--accent)':''}">${d.getDate()}</div>
+                <div class="bar-label" style="${i===0?'color:var(--accent)':''}">${label}</div>
             </div>`;
         }
 
@@ -463,7 +481,6 @@
     function triggerImport() { document.getElementById('importFile').click(); }
     function handleFileLoad(input) { const r = new FileReader(); r.onload = e => { state = JSON.parse(e.target.result); save(); location.reload(); }; r.readAsText(input.files[0]); }
 
-    // Style for Confetti fall
     const s = document.createElement('style'); s.innerHTML = `@keyframes fall { to { transform: translateY(100vh) rotate(360deg); } } .confetti { animation: fall 2s linear forwards; }`; document.head.appendChild(s);
 
     init();
