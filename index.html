@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v33 (Sync Fixed)</title>
+    <title>Task Master v34 (Graph & Sync Fixed)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -391,20 +391,35 @@
 
 <script>
     const STABLE_KEY = 'tm_universal_store';
-    let state = { todos: [], goals: { weekly: [], monthly: [] }, archives: {}, categories: ['Personal', 'Work'], theme: 'light', graphMode: 'week', activeFilter: 'All', updatedAt: 0, config: { lastPriority: 'low', lastCategory: 'Personal' } };
+    // --- 1. Added dailyStats to state ---
+    let state = { 
+        todos: [], 
+        goals: { weekly: [], monthly: [] }, 
+        dailyStats: {}, // Stores history: "2023-10-27": {done: 5, total: 10}
+        categories: ['Personal', 'Work'], 
+        theme: 'light', 
+        graphMode: 'week', 
+        activeFilter: 'All', 
+        updatedAt: 0 
+    };
+    
     let currentInput = { priority: 'low', category: 'Personal' };
     let syncTimer = null, dragSrcEl = null, pendingReminderTask = null, pendingRolloverTasks = [], editingTaskInfo = null;
     let isDirty = false, dbRef = null;
+    let isSyncingDown = false; // Prevents loops
 
     function init() {
         const saved = localStorage.getItem(STABLE_KEY);
-        if(saved) state = JSON.parse(saved);
+        if(saved) state = { ...state, ...JSON.parse(saved) }; // Merge to ensure new fields exist
         
+        // Data Migration: Ensure arrays exist
+        if(!state.dailyStats) state.dailyStats = {};
         const ensureSubtasks = (list) => (list || []).forEach(t => { if(!t.subtasks) t.subtasks = []; });
         ensureSubtasks(state.todos);
         ensureSubtasks(state.goals.weekly);
         ensureSubtasks(state.goals.monthly);
 
+        // Load Credentials & Auto-Connect
         const savedFb = JSON.parse(localStorage.getItem('tm_firebase_config') || '{}');
         if(savedFb.configStr) document.getElementById('firebaseConfig').value = savedFb.configStr;
         if(savedFb.syncId) document.getElementById('syncId').value = savedFb.syncId;
@@ -413,8 +428,13 @@
         document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
         
         checkDayRollover();
+        updateDailyStats(); // Calc today's stats immediately
         renderAll();
-        initFirebase(false);
+        
+        // Auto-connect if credentials exist
+        if(savedFb.configStr && savedFb.syncId) {
+            initFirebase(false);
+        }
 
         document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkDayRollover(); });
         document.addEventListener('keydown', (e) => {
@@ -424,6 +444,7 @@
         });
     }
 
+    // --- 2. Robust Sync Logic ---
     function initFirebase(manual) {
         const configStr = document.getElementById('firebaseConfig').value.trim();
         const syncId = document.getElementById('syncId').value.trim();
@@ -436,62 +457,100 @@
             dbRef = firebase.database().ref('taskmaster/' + syncId);
             updateCloudUI('syncing', 'Connecting...');
 
-            // 1. Initial Master/Slave Check
+            // Master/Slave Check
             dbRef.once('value', (snapshot) => {
                 const remote = snapshot.val();
                 if(!remote) {
-                    // No data on cloud, we are master. Push local.
-                    pushToFirebase();
+                    pushToFirebase(); // We are master
                 } else if ((remote.updatedAt || 0) > (state.updatedAt || 0)) {
-                    // Cloud is newer. Pull down.
-                    state = remote;
-                    save(true); // Save locally, DO NOT PUSH BACK
-                    renderAll();
-                    updateCloudUI('success', 'Synced (Downloaded)');
+                    applyRemoteState(remote); // Cloud is master
                 } else {
-                    // Local is newer. Push up.
-                    pushToFirebase();
+                    pushToFirebase(); // We are newer
                 }
             });
 
-            // 2. Realtime Listener (Receive ONLY)
+            // Listen for changes
             dbRef.on('value', (snapshot) => {
                 const remote = snapshot.val();
+                // Only update if remote is strictly newer to avoid echo
                 if(remote && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
-                    state = remote;
-                    save(true); // Save locally, DO NOT PUSH BACK
-                    renderAll();
-                    updateCloudUI('success', 'Synced (Updated)');
+                    applyRemoteState(remote);
                 }
             });
 
         } catch(e) { 
             console.error(e);
-            if(manual) alert("Config Error: Check JSON format"); 
+            if(manual) alert("Config Error: Check JSON"); 
             updateCloudUI('error', 'Config Error');
         }
     }
 
+    function applyRemoteState(remote) {
+        isSyncingDown = true; // LOCK
+        state = remote;
+        save(true); // Save to local, DO NOT PUSH
+        renderAll();
+        updateCloudUI('success', 'Synced (Down)');
+        setTimeout(() => isSyncingDown = false, 1000); // UNLOCK
+    }
+
     function pushToFirebase() {
-        if(!dbRef) return;
+        if(!dbRef || isSyncingDown) return;
         updateCloudUI('syncing', 'Syncing...');
         dbRef.set(state)
             .then(() => updateCloudUI('success', 'Saved'))
-            .catch((e) => {
-                console.error(e);
-                updateCloudUI('error', 'Permission Error');
-            });
+            .catch(() => updateCloudUI('error', 'Auth Error'));
     }
 
-    // UPDATED: Added fromRemote flag to prevent loops
     function save(fromRemote = false) { 
         if (!fromRemote) state.updatedAt = Date.now(); 
         localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
         
-        if(dbRef && !fromRemote) { 
+        // Only push if this was a local user action
+        if(dbRef && !fromRemote && !isSyncingDown) { 
             clearTimeout(syncTimer); 
-            syncTimer = setTimeout(pushToFirebase, 1500); 
+            syncTimer = setTimeout(pushToFirebase, 2000); // Debounce
         }
+    }
+
+    // --- 3. New Graph & Stats Logic ---
+    function updateDailyStats() {
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        const total = state.todos.length;
+        const done = state.todos.filter(t => t.completed).length;
+        state.dailyStats[todayKey] = { total, done };
+    }
+
+    function renderGraph() { 
+        const c = document.getElementById('chartBars'); 
+        c.innerHTML = ''; 
+        const days = state.graphMode === 'week' ? 7 : 30;
+        
+        if (state.graphMode === 'month') c.classList.add('month-view');
+        else c.classList.remove('month-view');
+
+        for(let i = days - 1; i >= 0; i--){ 
+            const d = new Date(); 
+            d.setDate(d.getDate() - i); 
+            const key = d.toLocaleDateString('en-CA');
+            const dayLabel = d.getDate();
+            const isToday = i === 0;
+
+            const stat = state.dailyStats[key] || { total: 0, done: 0 };
+            const pct = stat.total > 0 ? (stat.done / stat.total) * 100 : 0;
+            // Height logic: Min 5px so empty bars are visible placeholders
+            const height = Math.max(pct, 5) + '%'; 
+            const color = pct === 100 ? 'var(--success)' : (pct > 0 ? 'var(--accent)' : '#eee');
+
+            c.innerHTML += `
+            <div class="bar-group ${isToday ? 'today' : ''}">
+                <div class="count-label">${stat.done}/${stat.total}</div>
+                <div class="bar-stack" style="height:140px">
+                    <div class="bar-segment" style="height:${height}; background:${color}; border-radius:4px;"></div>
+                </div>
+                <div class="bar-label" style="${isToday ? 'color:var(--accent)' : ''}">${dayLabel}</div>
+            </div>`; 
+        } 
     }
 
     function addTask(type) {
@@ -503,9 +562,26 @@
         input.value = '';
         if(type !== 'daily') closeModal('addGoalModal');
         sortTasks(type === 'daily' ? state.todos : state.goals[type]);
+        
+        if(type === 'daily') updateDailyStats(); // Update stats
         save(); renderAll();
     }
 
+    function toggleTask(type, id) { 
+        const l = type==='daily'?state.todos:state.goals[type]; 
+        const t = l.find(x=>x.id===id); 
+        if(t){ 
+            t.completed = !t.completed; 
+            if(t.completed) rainConfetti(); 
+            if(type === 'daily') updateDailyStats(); // Update stats
+            save(); 
+            renderAll(); 
+        } 
+    }
+
+    function deleteSubtask(type, tid, sid) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===tid); if(t){ t.subtasks.splice(sid, 1); save(); renderAll(); } }
+    
+    // --- Rendering & Helpers ---
     function renderTasks(type) {
         const listId = type==='daily'?'taskListDaily':(type==='weekly'?'taskListWeekly':'taskListMonthly');
         const container = document.getElementById(listId);
@@ -516,7 +592,6 @@
         source.forEach(t => {
             const pColor = t.priority==='high'?'#ef4444':t.priority==='med'?'#f59e0b':'#10b981';
             const subDone = t.subtasks.filter(s=>s.completed).length;
-            const progress = t.subtasks.length > 0 ? (subDone/t.subtasks.length)*100 : 0;
             
             container.innerHTML += `
             <div class="task-card" draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondrop="handleDrop(event, ${t.id})">
@@ -550,16 +625,44 @@
         document.getElementById('todayCount').innerText = `${state.todos.filter(t=>!t.completed).length} tasks`;
     }
 
-    // Helper functions (Subtasks, Modals, Graph, Rollover)
-    function toggleTask(type, id) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===id); if(t){ t.completed = !t.completed; if(t.completed) rainConfetti(); save(); renderAll(); } }
     function toggleSubInput(id) { document.getElementById(`sub-${id}`).classList.toggle('active'); }
     function addSubtask(e, type, id) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===id); if(t && e.target.value.trim()){ t.subtasks.push({text: e.target.value.trim(), completed: false}); save(); renderAll(); } }
     function toggleSubtask(type, tid, sid) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===tid); if(t){ t.subtasks[sid].completed = !t.subtasks[sid].completed; save(); renderAll(); } }
-    function deleteSubtask(type, tid, sid) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===tid); if(t){ t.subtasks.splice(sid, 1); save(); renderAll(); } }
     function editSubtask(type, tid, sid) { const l = type==='daily'?state.todos:state.goals[type]; const t = l.find(x=>x.id===tid); const nt = prompt("Edit:", t.subtasks[sid].text); if(nt){ t.subtasks[sid].text = nt; save(); renderAll(); } }
-    function promptDelete(type, id) { if(confirm("Delete?")){ if(type==='daily') state.todos=state.todos.filter(x=>x.id!==id); else state.goals[type]=state.goals[type].filter(x=>x.id!==id); save(); renderAll(); } }
-    function checkDayRollover() { const today = new Date().toLocaleDateString('en-CA'); if(state.lastLoginDate && state.lastLoginDate !== today) { const incomplete = state.todos.filter(t=>!t.completed); if(incomplete.length > 0) { pendingRolloverTasks = incomplete; document.getElementById('rolloverCount').innerText = incomplete.length; openModal('rolloverModal'); } state.todos = []; } state.lastLoginDate = today; save(); }
-    function handleRollover(action) { if(action==='transfer') state.todos = [...pendingRolloverTasks.map(t=>({...t, id:Date.now()+Math.random(), completed:false})), ...state.todos]; closeModal('rolloverModal'); save(); renderAll(); }
+    function promptDelete(type, id) { 
+        if(confirm("Delete?")){ 
+            if(type==='daily') state.todos=state.todos.filter(x=>x.id!==id); 
+            else state.goals[type]=state.goals[type].filter(x=>x.id!==id); 
+            if(type==='daily') updateDailyStats();
+            save(); renderAll(); 
+        } 
+    }
+    
+    function checkDayRollover() { 
+        const today = new Date().toLocaleDateString('en-CA'); 
+        if(state.lastLoginDate && state.lastLoginDate !== today) { 
+            const incomplete = state.todos.filter(t=>!t.completed); 
+            if(incomplete.length > 0) { 
+                pendingRolloverTasks = incomplete; 
+                document.getElementById('rolloverCount').innerText = incomplete.length; 
+                openModal('rolloverModal'); 
+            } 
+            state.todos = []; 
+        } 
+        state.lastLoginDate = today; 
+        save(); 
+    }
+    
+    function handleRollover(action) { 
+        if(action==='transfer') {
+            state.todos = [...pendingRolloverTasks.map(t=>({...t, id:Date.now()+Math.random(), completed:false})), ...state.todos];
+            updateDailyStats();
+        }
+        closeModal('rolloverModal'); 
+        save(); 
+        renderAll(); 
+    }
+
     function renderFilters() { const c = document.getElementById('filterContainer'); c.innerHTML = ['All', ...state.categories].map(f => `<div class="filter-chip ${state.activeFilter===f?'active':''}" onclick="state.activeFilter='${f}';renderAll()">${f}</div>`).join(''); }
     function renderCategories() { document.getElementById('catContainer').innerHTML = state.categories.map(cat => `<div class="chip ${currentInput.category===cat?'active':''}" onclick="currentInput.category='${cat}';renderCategories()">${cat}</div>`).join(''); }
     function openCatManager() { document.getElementById('catManagerList').innerHTML = state.categories.map((c,i)=>`<div class="cat-item-ui"><span>${c}</span><span onclick="state.categories.splice(${i},1);save();renderAll();openCatManager()">🗑</span></div>`).join(''); openModal('catManagerModal'); }
@@ -567,7 +670,7 @@
     function openAddGoalModal(type) { document.getElementById('goalModalTitle').innerText = "Add " + type; openModal('addGoalModal'); }
     function setPriority(el, v) { currentInput.priority = v; document.querySelectorAll('.chips-row .chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); }
     function setGraph(m) { state.graphMode = m; document.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active')); event.target.classList.add('active'); renderGraph(); }
-    function renderGraph() { const c = document.getElementById('chartBars'); c.innerHTML = ''; for(let i=6; i>=0; i--){ const d = new Date(); d.setDate(d.getDate()-i); c.innerHTML += `<div class="bar-group"><div class="bar-stack" style="height:40px; background:#eee"></div><div class="bar-label">${d.getDate()}</div></div>`; } }
+    
     function rainConfetti() { for(let i=0; i<20; i++){ const c = document.createElement('div'); c.className='confetti'; c.style.left=Math.random()*100+'vw'; c.style.background=i%2?'#6366f1':'#10b981'; c.style.width='10px'; c.style.height='10px'; c.style.position='fixed'; c.style.top='-10px'; c.style.animation='fall 2s linear forwards'; document.body.appendChild(c); setTimeout(()=>c.remove(), 2000); } }
     function updateCloudUI(s, t) { const dot = document.getElementById('cloudDot'); document.getElementById('cloudIndicator').style.display='flex'; document.getElementById('cloudText').innerText = t; dot.style.background = s==='success'?'#10b981':s==='syncing'?'#f59e0b':'#ef4444'; }
     function toggleTheme() { state.theme = state.theme==='light'?'dark':'light'; document.documentElement.setAttribute('data-theme', state.theme); save(); }
