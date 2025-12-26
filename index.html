@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Task Master v33 (Cloud Sync Fixed)</title>
+    <title>Task Master v33 (Sync Fixed)</title>
     <style>
         :root {
             --bg-body: #f1f5f9;
@@ -394,7 +394,7 @@
     let state = { todos: [], goals: { weekly: [], monthly: [] }, archives: {}, categories: ['Personal', 'Work'], theme: 'light', graphMode: 'week', activeFilter: 'All', updatedAt: 0, config: { lastPriority: 'low', lastCategory: 'Personal' } };
     let currentInput = { priority: 'low', category: 'Personal' };
     let syncTimer = null, dragSrcEl = null, pendingReminderTask = null, pendingRolloverTasks = [], editingTaskInfo = null;
-    let isDirty = false, dbRef = null, isRemoteUpdate = false;
+    let isDirty = false, dbRef = null;
 
     function init() {
         const saved = localStorage.getItem(STABLE_KEY);
@@ -436,34 +436,62 @@
             dbRef = firebase.database().ref('taskmaster/' + syncId);
             updateCloudUI('syncing', 'Connecting...');
 
+            // 1. Initial Master/Slave Check
+            dbRef.once('value', (snapshot) => {
+                const remote = snapshot.val();
+                if(!remote) {
+                    // No data on cloud, we are master. Push local.
+                    pushToFirebase();
+                } else if ((remote.updatedAt || 0) > (state.updatedAt || 0)) {
+                    // Cloud is newer. Pull down.
+                    state = remote;
+                    save(true); // Save locally, DO NOT PUSH BACK
+                    renderAll();
+                    updateCloudUI('success', 'Synced (Downloaded)');
+                } else {
+                    // Local is newer. Push up.
+                    pushToFirebase();
+                }
+            });
+
+            // 2. Realtime Listener (Receive ONLY)
             dbRef.on('value', (snapshot) => {
                 const remote = snapshot.val();
                 if(remote && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
-                    isRemoteUpdate = true;
                     state = remote;
-                    localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+                    save(true); // Save locally, DO NOT PUSH BACK
                     renderAll();
-                    updateCloudUI('success', 'Synced');
-                    isRemoteUpdate = false;
-                } else if (!remote || (state.updatedAt > (remote.updatedAt || 0))) {
-                    pushToFirebase();
-                } else {
-                    updateCloudUI('success', 'Synced');
+                    updateCloudUI('success', 'Synced (Updated)');
                 }
             });
-        } catch(e) { if(manual) alert("Config Error"); }
+
+        } catch(e) { 
+            console.error(e);
+            if(manual) alert("Config Error: Check JSON format"); 
+            updateCloudUI('error', 'Config Error');
+        }
     }
 
     function pushToFirebase() {
-        if(!dbRef || isRemoteUpdate) return;
+        if(!dbRef) return;
         updateCloudUI('syncing', 'Syncing...');
-        dbRef.set(state).then(() => updateCloudUI('success', 'Saved')).catch(() => updateCloudUI('error', 'Error'));
+        dbRef.set(state)
+            .then(() => updateCloudUI('success', 'Saved'))
+            .catch((e) => {
+                console.error(e);
+                updateCloudUI('error', 'Permission Error');
+            });
     }
 
-    function save() { 
-        state.updatedAt = Date.now(); 
+    // UPDATED: Added fromRemote flag to prevent loops
+    function save(fromRemote = false) { 
+        if (!fromRemote) state.updatedAt = Date.now(); 
         localStorage.setItem(STABLE_KEY, JSON.stringify(state)); 
-        if(dbRef) { clearTimeout(syncTimer); syncTimer = setTimeout(pushToFirebase, 1500); }
+        
+        if(dbRef && !fromRemote) { 
+            clearTimeout(syncTimer); 
+            syncTimer = setTimeout(pushToFirebase, 1500); 
+        }
     }
 
     function addTask(type) {
