@@ -1426,7 +1426,8 @@ function saveTaskEdit() {
 
 // ── PRIORITY & CATEGORY ──
 function setPriority(el, p) {
-    document.querySelectorAll('.chips-row:nth-of-type(1) .chip').forEach(c => c.classList.remove('active'));
+    if (el.classList.contains('active')) return; // Already selected — do nothing
+    document.querySelectorAll('.chips-row .chip.p-low, .chips-row .chip.p-med, .chips-row .chip.p-high').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     currentInput.priority = p;
     state.config.lastPriority = p;
