@@ -1388,7 +1388,8 @@ function openEditModal(id, type) {
 
 function setEditPriority(p) {
     document.querySelectorAll('#editPriorityChips .chip').forEach(c => c.classList.remove('active'));
-    const target = [...document.querySelectorAll('#editPriorityChips .chip')].find(c => c.textContent.toLowerCase() === p);
+    // Match by class (p-low / p-med / p-high) so "med" correctly targets the Medium chip
+    const target = [...document.querySelectorAll('#editPriorityChips .chip')].find(c => c.classList.contains('p-' + p));
     if (target) target.classList.add('active');
 }
 
