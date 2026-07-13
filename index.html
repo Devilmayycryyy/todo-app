@@ -741,9 +741,33 @@ function init() {
     currentInput.priority = state.config.lastPriority || 'low';
     currentInput.category = state.config.lastCategory || (state.categories[0] || 'Personal');
 
+    // ── DEDUPLICATE (fixes duplicates created by previous crash-loop bugs) ──
+    const dedupe = (list) => {
+        const seen = new Map();
+        // Walk newest-first (highest id = most recent); keep first occurrence of each text+category
+        [...list].sort((a, b) => b.id - a.id).forEach(t => {
+            const key = (t.text || '').trim().toLowerCase() + '|' + (t.category || '');
+            if (!seen.has(key)) seen.set(key, t);
+        });
+        // Preserve original order by filtering
+        return list.filter(t => {
+            const key = (t.text || '').trim().toLowerCase() + '|' + (t.category || '');
+            if (seen.get(key) === t) return true;
+            // Not the kept copy — remove
+            return false;
+        });
+    };
+    const beforeCount = state.todos.length;
+    state.todos = dedupe(state.todos);
+    if (state.todos.length < beforeCount) {
+        console.log(`[TaskMaster] Removed ${beforeCount - state.todos.length} duplicate task(s)`);
+        save(); // Persist the cleaned state
+    }
+
     sortTasks(state.todos);
     sortTasks(state.goals.weekly);
     sortTasks(state.goals.monthly);
+
 
     // Sync config
     const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
