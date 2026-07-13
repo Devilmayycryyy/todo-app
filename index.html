@@ -907,9 +907,9 @@ function handleRollover(action) {
 
     if (action === 'transfer') {
         // Add to today WITH transferred badge, but ALSO keep as missed in yesterday
-        const transferred = pendingRolloverTasks.map(t => ({
+        const transferred = pendingRolloverTasks.map((t, i) => ({
             ...t,
-            id: Date.now() + Math.random(),
+            id: Date.now() + i,
             timestamp: new Date().toISOString(),
             completed: false,
             isTransferred: true,
@@ -955,7 +955,7 @@ function generateRecurringTasks() {
 
         if (shouldAdd) {
             state.todos.unshift({
-                id: Date.now() + Math.random(),
+                id: Date.now() + i,
                 text: t.text,
                 priority: t.priority,
                 category: t.category,
@@ -1054,7 +1054,7 @@ function rescheduleTask(dateKey, taskId) {
 
     const newTask = {
         ...task,
-        id: Date.now() + Math.random(),
+        id: Date.now(),
         timestamp: new Date().toISOString(),
         completed: false,
         isTransferred: true,
@@ -1145,41 +1145,44 @@ function createTaskCard(task, type) {
     const subTotal = (task.subtasks||[]).length;
     const subPct = subTotal > 0 ? Math.round((subDone/subTotal)*100) : 0;
 
+    const tid = task.id; // integer ID — safe to embed in onclick strings
+
     card.innerHTML = `
         <div class="task-main-row">
             <span class="drag-handle" title="Drag to reorder">⠿</span>
-            <div class="task-check ${task.completed?'checked':''}" onclick="toggleTask('${task.id}','${type}')"></div>
+            <div class="task-check ${task.completed?'checked':''}" onclick="toggleTask(${tid},'${type}')"></div>
             <div class="task-body">
-                <div class="task-txt ${task.completed?'done':''}">${escapeHtml(task.text)}</div>
+                <div class="task-txt ${task.completed?'done':''}">` + escapeHtml(task.text) + `</div>
                 ${notesHtml}
                 <div class="task-meta">${badges}</div>
                 ${dueDateHtml}
             </div>
             <div class="task-actions">
-                <div class="action-icon pomo" onclick="startPomodoro('${task.id}','${escapeHtml(task.text)}')" title="Focus (Pomodoro)">🍅</div>
-                <div class="action-icon" onclick="openReminderModal('${task.id}')" title="Reminder">⏰</div>
-                <div class="action-icon" onclick="openEditModal('${task.id}','${type}')" title="Edit">✏️</div>
-                <div class="action-icon del" onclick="deleteTask('${task.id}','${type}')" title="Delete">🗑</div>
-                ${subTotal > 0 ? `<div class="action-icon chevron-icon" id="chev-${task.id}" onclick="toggleSubtasks('${task.id}')">▾</div>` : `<div class="action-icon" onclick="toggleSubtasks('${task.id}')">▾</div>`}
+                <div class="action-icon pomo" onclick="startPomodoro(${tid},'` + escapeHtml(task.text).replace(/'/g,"\\'") + `')" title="Focus (Pomodoro)">🍅</div>
+                <div class="action-icon" onclick="openReminderModal(${tid})" title="Reminder">⏰</div>
+                <div class="action-icon" onclick="openEditModal(${tid},'${type}')" title="Edit">✏️</div>
+                <div class="action-icon del" onclick="deleteTask(${tid},'${type}')" title="Delete">🗑</div>
+                ${subTotal > 0 ? `<div class="action-icon chevron-icon" id="chev-${tid}" onclick="toggleSubtasks(${tid})">▾</div>` : `<div class="action-icon" onclick="toggleSubtasks(${tid})">▾</div>`}
             </div>
         </div>
-        <div class="subtask-area" id="sub-${task.id}">
+        <div class="subtask-area" id="sub-${tid}">
             ${subTotal > 0 ? `<div class="sub-progress"><div class="sub-bar" style="width:${subPct}%"></div></div>` : ''}
             ${(task.subtasks||[]).map((s,i) => `
                 <div class="sub-item">
-                    <div class="sub-check ${s.done?'checked':''}" onclick="toggleSubtask('${task.id}','${i}','${type}')"></div>
-                    <span class="sub-text" onclick="editSubText(this,'${task.id}','${i}','${type}')" style="${s.done?'text-decoration:line-through;opacity:0.5':''}">${escapeHtml(s.text)}</span>
-                    <span class="sub-del" onclick="deleteSubtask('${task.id}','${i}','${type}')">✕</span>
+                    <div class="sub-check ${s.done?'checked':''}" onclick="toggleSubtask(${tid},${i},'${type}')"></div>
+                    <span class="sub-text" onclick="editSubText(this,${tid},${i},'${type}')" style="${s.done?'text-decoration:line-through;opacity:0.5':''}">` + escapeHtml(s.text) + `</span>
+                    <span class="sub-del" onclick="deleteSubtask(${tid},${i},'${type}')">✕</span>
                 </div>`).join('')}
             <div class="sub-input-row">
-                <input class="sub-input-main" id="subinput-${task.id}" placeholder="+ Add subtask..." onkeypress="e=>{if(e.key==='Enter')addSubtask('${task.id}','${type}')}" >
-                <button class="manage-btn" onclick="addSubtask('${task.id}','${type}')">+</button>
+                <input class="sub-input-main" id="subinput-${tid}" placeholder="+ Add subtask...">
+                <button class="manage-btn" onclick="addSubtask(${tid},'${type}')">+</button>
             </div>
         </div>`;
 
-    // Fix: attach keypress properly
-    const subInput = card.querySelector(`#subinput-${task.id}`);
-    if (subInput) subInput.addEventListener('keypress', e => { if (e.key === 'Enter') addSubtask(task.id, type); });
+    // Attach Enter key on subtask input
+    const subInput = card.querySelector(`#subinput-${tid}`);
+    if (subInput) subInput.addEventListener('keypress', e => { if (e.key === 'Enter') addSubtask(tid, type); });
+
 
     // Drag events
     card.addEventListener('dragstart', onDragStart);
@@ -1212,7 +1215,7 @@ function addTask(type) {
     if (!text) { inp.style.borderColor = 'var(--danger)'; setTimeout(() => inp.style.borderColor = '', 800); return; }
 
     const task = {
-        id: Date.now(),
+        id: Date.now(), // always integer — never use Math.random() for IDs used in onclick
         text,
         priority: currentInput.priority,
         category: currentInput.category,
@@ -1428,7 +1431,8 @@ function saveTaskEdit() {
 // ── PRIORITY & CATEGORY ──
 function setPriority(el, p) {
     if (el.classList.contains('active')) return; // Already selected — do nothing
-    document.querySelectorAll('.chips-row .chip.p-low, .chips-row .chip.p-med, .chips-row .chip.p-high').forEach(c => c.classList.remove('active'));
+    // Only target the main input bar priority chips, not any modal chips
+    document.querySelectorAll('.sticky-wrapper .chip.p-low, .sticky-wrapper .chip.p-med, .sticky-wrapper .chip.p-high').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     currentInput.priority = p;
     state.config.lastPriority = p;
@@ -1668,7 +1672,7 @@ function saveGoal(type) {
     if (!text) return;
     const dueDate = document.getElementById('goalDueDate').value;
     const task = {
-        id: Date.now() + Math.random(),
+        id: Date.now(),
         text,
         priority: currentInput.priority,
         category: currentInput.category,
