@@ -960,7 +960,7 @@ function generateRecurringTasks() {
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
     const allGoalTasks = [...(state.goals.weekly || []), ...(state.goals.monthly || [])];
 
-    allGoalTasks.forEach(t => {
+    allGoalTasks.forEach((t, i) => {
         if (!t.recurring || t.recurring === 'none') return;
         // Check if already added today
         const alreadyAdded = state.todos.some(d => d.recurringSourceId === t.id && d.recurringDate === todayKey);
@@ -973,7 +973,7 @@ function generateRecurringTasks() {
 
         if (shouldAdd) {
             state.todos.unshift({
-                id: Date.now() + i,
+                id: Date.now() + i + 1,
                 text: t.text,
                 priority: t.priority,
                 category: t.category,
@@ -1970,12 +1970,15 @@ function handleFileLoad(input) {
 function clearAllData() {
     document.getElementById('confirmText').innerText = 'This will delete ALL tasks, goals, and history. This cannot be undone!';
     document.getElementById('confirmActionBtn').onclick = () => {
-        localStorage.removeItem(STABLE_KEY);
+        // Wipe current key + every legacy key so nothing survives the reload
+        [STABLE_KEY, ...LEGACY_KEYS].forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem('tm_sync_config');
         location.reload();
     };
     closeModal('settingsModal');
     openModal('confirmModal');
 }
+
 
 // ═══════════════════════ TOAST ═══════════════════════
 function showToast(msg, type = '') {
