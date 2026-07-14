@@ -845,12 +845,13 @@ function checkDayRollover() {
     // Update streak
     updateStreak(previousDate, completed.length, previousTasks.length);
 
-    // Generate recurring tasks for today
-    generateRecurringTasks();
-
     if (incomplete.length > 0) {
         pendingRolloverTasks = incomplete;
-        state.todos = [];
+        state.todos = [];  // Clear old day first
+
+        // NOW generate recurring tasks into the fresh empty list
+        generateRecurringTasks();
+
         document.getElementById('rolloverCount').innerText = incomplete.length;
 
         // Format previous date for display
@@ -875,7 +876,8 @@ function checkDayRollover() {
 
         openModal('rolloverModal');
     } else {
-        state.todos = [];
+        state.todos = [];  // Clear old day
+        generateRecurringTasks();  // Add recurring tasks for today
     }
 
     state.lastLoginDate = todayKey;
@@ -1501,14 +1503,16 @@ function renderGraph() {
         } else if (state.archives[dateKey]) {
             const a = state.archives[dateKey];
             done   = (a.completed || []).filter(filterFn).length;
-            // Count missed as: tasks that are in missed[] but NOT in transferred[]
+
+            // Missed = tasks in missed[] that were NOT transferred
             const transferredIds = new Set((a.transferred || []).map(t => t.id));
-            missed = (a.missed || []).filter(t => !transferredIds.has(t.id) && filterFn(t)).length;
-            // Also count transferred ones that are still unfinished today
-            const transferredToday = (a.transferred || []).filter(t => {
-                const todayTask = state.todos.find(td => td.transferredFrom === dateKey && td.id !== t.id);
-                return false; // Don't double-count
-            }).length;
+            const pureMissed = (a.missed || []).filter(t => !transferredIds.has(t.id) && filterFn(t)).length;
+
+            // Transferred = tasks moved to next day (still "owed" — count as missed/orange in graph)
+            // They were incomplete on this day, so they inflate the total regardless of future completion
+            const transferredMissed = (a.transferred || []).filter(filterFn).length;
+
+            missed = pureMissed + transferredMissed;
         }
 
         const total = done + missed + remaining;
