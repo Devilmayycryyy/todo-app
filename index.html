@@ -841,15 +841,49 @@
         <button class="data-btn" onclick="triggerImport()">📤 <div><div>Restore Local Backup</div><div style="font-size:0.73rem;color:var(--text-secondary);font-weight:400">Import .json file</div></div></button>
         <button class="data-btn" onclick="clearAllData()">🗑️ <div><div style="color:var(--danger)">Clear All Data</div><div style="font-size:0.73rem;color:var(--text-secondary);font-weight:400">Reset everything</div></div></button>
         <input type="file" id="importFile" hidden onchange="handleFileLoad(this)">
+
+        <!-- ☁️ CLOUD SYNC SECTION -->
         <div class="sync-section">
-            <div style="display:flex;justify-content:space-between;align-items:center;"><span class="sync-label">☁️ Cloud Sync (JSONBin.io)</span><a href="https://jsonbin.io/login" target="_blank" style="font-size:0.7rem;color:var(--accent);">Get Key →</a></div>
-            <label class="sync-label" style="font-weight:400;font-size:0.7rem;">Master Key (starts with $2...)</label>
-            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="Paste Master Key..." onchange="saveSyncConfig()" autocomplete="off">
-            <label class="sync-label" style="font-weight:400;font-size:0.7rem;">Bin ID (empty = create new)</label>
-            <input type="text" class="sync-input" id="syncBinId" placeholder="Paste Bin ID..." onchange="saveSyncConfig()">
-            <div class="modal-btns"><button class="btn-base btn-confirm" onclick="cloudUpload(false)">⬆ Force Upload</button><button class="btn-base btn-confirm" style="background:#0ea5e9" onclick="cloudDownload(false)">⬇ Force Download</button></div>
-            <div id="syncStatus" style="font-size:0.75rem;color:var(--text-secondary);margin-top:8px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                <span style="font-size:0.95rem;font-weight:900;color:var(--text-primary)">☁️ Cloud Sync</span>
+                <span id="syncLiveBadge" style="font-size:0.68rem;font-weight:800;padding:3px 10px;border-radius:50px;background:var(--border);color:var(--text-secondary)">NOT CONNECTED</span>
+            </div>
+
+            <!-- Step guide -->
+            <div style="background:var(--bg-card2);border-radius:14px;padding:14px;margin-bottom:14px;border:1px solid var(--border);font-size:0.8rem;line-height:1.7;color:var(--text-secondary)">
+                <div style="font-weight:800;color:var(--text-primary);margin-bottom:6px">How to set up (free, 30 sec):</div>
+                <div>1️⃣ Go to <a href="https://jsonbin.io/login" target="_blank" style="color:var(--accent);font-weight:700">jsonbin.io</a> → Sign up free</div>
+                <div>2️⃣ Go to <strong>API Keys</strong> → copy your <strong>Master Key</strong></div>
+                <div>3️⃣ Paste it below → click <strong>Connect</strong></div>
+                <div>4️⃣ Copy your Bin ID to any other device to sync 🎉</div>
+            </div>
+
+            <label class="sync-label">Master Key <span style="font-weight:400;opacity:0.6">(starts with $2...)</span></label>
+            <input type="text" class="sync-input password-mask" id="app_token_field" placeholder="$2b$10$..."
+                   autocomplete="off" oninput="onSyncInputChange()">
+
+            <label class="sync-label" style="margin-top:10px">Bin ID <span style="font-weight:400;opacity:0.6">(auto-created on first connect)</span></label>
+            <input type="text" class="sync-input" id="syncBinId" placeholder="Leave empty to create new bin"
+                   oninput="onSyncInputChange()">
+
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn-base btn-confirm" style="flex:2" onclick="connectSync()">⚡ Connect & Sync</button>
+                <button class="btn-base" style="flex:1;background:var(--bg-card2);border:1px solid var(--border);color:var(--text-primary)" onclick="cloudDownload(false)">⬇ Pull</button>
+                <button class="btn-base" style="flex:1;background:var(--bg-card2);border:1px solid var(--border);color:var(--text-primary)" onclick="cloudUpload(false)">⬆ Push</button>
+            </div>
+
+            <div id="syncStatus" style="font-size:0.8rem;color:var(--text-secondary);margin-top:10px;min-height:20px;text-align:center"></div>
+
+            <!-- Bin ID copy helper -->
+            <div id="syncBinShare" style="display:none;margin-top:12px;background:var(--success-soft);border:1px solid rgba(52,211,153,0.2);border-radius:12px;padding:12px;font-size:0.8rem">
+                <div style="font-weight:800;color:var(--success);margin-bottom:6px">✓ Connected! Share this Bin ID on other devices:</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <code id="syncBinDisplay" style="flex:1;background:var(--bg-card);padding:6px 10px;border-radius:8px;font-size:0.78rem;border:1px solid var(--border);word-break:break-all"></code>
+                    <button onclick="copySyncBinId()" style="background:var(--accent);color:white;border:none;padding:6px 12px;border-radius:8px;font-size:0.75rem;font-weight:800;cursor:pointer;flex-shrink:0">Copy</button>
+                </div>
+            </div>
         </div>
+
         <button class="btn-base btn-cancel" style="width:100%;margin-top:14px;" onclick="closeModal('settingsModal')">Close (Esc)</button>
     </div>
 </div>
@@ -1058,11 +1092,6 @@ function init() {
     sortTasks(state.goals.monthly);
 
 
-    // Sync config
-    const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
-    if (syncConfig.apiKey) document.getElementById('app_token_field').value = syncConfig.apiKey;
-    if (syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
-
     // Theme
     document.documentElement.setAttribute('data-theme', state.theme || 'light');
 
@@ -1077,11 +1106,17 @@ function init() {
     if ("Notification" in window && Notification.permission === "granted")
         document.getElementById('notifBtn').classList.add('active');
 
-    // Cloud sync
+    // Cloud sync — restore credentials and start
+    const syncConfig = JSON.parse(localStorage.getItem('tm_sync_config') || '{}');
+    if (syncConfig.apiKey) document.getElementById('app_token_field').value = syncConfig.apiKey;
+    if (syncConfig.binId) document.getElementById('syncBinId').value = syncConfig.binId;
+
     if (syncConfig.apiKey && syncConfig.binId) {
         document.getElementById('cloudIndicator').style.display = 'flex';
-        updateCloudUI('idle', 'Cloud Active');
+        updateCloudUI('syncing', 'Connecting...');
         cloudDownload(true);
+        // Periodic auto-sync every 5 minutes
+        setInterval(() => cloudDownload(true), 5 * 60 * 1000);
     }
 
     // Keyboard
@@ -2248,6 +2283,16 @@ function openModal(id) {
     const m = document.getElementById(id);
     m.style.display = 'flex';
     requestAnimationFrame(() => m.classList.add('active'));
+    // Refresh sync panel when settings opens
+    if (id === 'settingsModal') {
+        const binId  = document.getElementById('syncBinId').value.trim();
+        const apiKey = document.getElementById('app_token_field').value.trim();
+        if (apiKey && binId.length > 10) {
+            updateSyncBadge('connected');
+            document.getElementById('syncBinShare').style.display = 'block';
+            document.getElementById('syncBinDisplay').textContent = binId;
+        }
+    }
 }
 function closeModal(id) {
     const m = document.getElementById(id);
@@ -2276,7 +2321,7 @@ function toggleFocusMode() {
 
 // ═══════════════════════ SAVE & SYNC ═══════════════════════
 function save() {
-    state.updatedAt = Date.now();
+    state.updatedAt = Date.now(); // stamp so merge logic can tell which device is newer
     localStorage.setItem(STABLE_KEY, JSON.stringify(state));
     triggerAutoSync();
 }
@@ -2300,14 +2345,76 @@ function updateCloudUI(status, text) {
     if (status === 'syncing') dot.classList.add('syncing');
     if (status === 'success') dot.classList.add('success');
     if (status === 'error')   dot.classList.add('error');
+    // Mirror to the live badge inside settings modal
+    if (status === 'success') updateSyncBadge('connected');
+    if (status === 'error')   updateSyncBadge('error');
+    if (status === 'syncing') updateSyncBadge('connecting');
 }
 
 function saveSyncConfig() {
     const apiKey = document.getElementById('app_token_field').value.trim();
     const binId  = document.getElementById('syncBinId').value.trim();
     localStorage.setItem('tm_sync_config', JSON.stringify({ apiKey, binId }));
-    if (apiKey && binId.length > 10) { document.getElementById('cloudIndicator').style.display = 'flex'; updateCloudUI('idle', 'Ready'); }
+    if (apiKey && binId.length > 10) {
+        document.getElementById('cloudIndicator').style.display = 'flex';
+        updateCloudUI('success', 'Active');
+        updateSyncBadge('connected');
+        document.getElementById('syncBinShare').style.display = 'block';
+        document.getElementById('syncBinDisplay').textContent = binId;
+    }
 }
+
+// Input change — reset badge to "unsaved"
+function onSyncInputChange() {
+    updateSyncBadge('unsaved');
+}
+
+// Connect & Sync button
+async function connectSync() {
+    const apiKey = document.getElementById('app_token_field').value.trim();
+    const statusEl = document.getElementById('syncStatus');
+    if (!apiKey || apiKey.length < 20) {
+        statusEl.innerHTML = '<span style="color:var(--danger)">✗ Please enter a valid Master Key</span>';
+        return;
+    }
+    saveSyncConfig(); // persist first
+    statusEl.innerHTML = '<span style="color:var(--text-secondary)">Connecting...</span>';
+    updateSyncBadge('connecting');
+    await cloudUpload(false); // create bin if needed, then push
+    const binId = document.getElementById('syncBinId').value.trim();
+    if (binId.length > 10) {
+        updateSyncBadge('connected');
+        document.getElementById('syncBinShare').style.display = 'block';
+        document.getElementById('syncBinDisplay').textContent = binId;
+        saveSyncConfig(); // re-save with possible new binId
+        // Start periodic sync for this session
+        if (!window._syncIntervalSet) {
+            window._syncIntervalSet = true;
+            setInterval(() => cloudDownload(true), 5 * 60 * 1000);
+        }
+    }
+}
+
+function copySyncBinId() {
+    const binId = document.getElementById('syncBinId').value.trim();
+    navigator.clipboard.writeText(binId).then(() => showToast('📋 Bin ID copied!', 'success'));
+}
+
+function updateSyncBadge(status) {
+    const badge = document.getElementById('syncLiveBadge');
+    if (!badge) return;
+    const map = {
+        connected:  { text: '✓ CONNECTED',   bg: 'rgba(52,211,153,0.15)',  color: 'var(--success)' },
+        connecting: { text: '⟳ CONNECTING',  bg: 'rgba(251,191,36,0.15)', color: 'var(--warning)' },
+        unsaved:    { text: '● UNSAVED',      bg: 'rgba(251,113,133,0.12)', color: 'var(--danger)'  },
+        error:      { text: '✗ ERROR',        bg: 'rgba(251,113,133,0.12)', color: 'var(--danger)'  },
+    };
+    const s = map[status] || { text: 'NOT CONNECTED', bg: 'var(--border)', color: 'var(--text-secondary)' };
+    badge.textContent = s.text;
+    badge.style.background = s.bg;
+    badge.style.color = s.color;
+}
+
 
 async function cloudUpload(isSilent) {
     const apiKey = document.getElementById('app_token_field').value.trim();
@@ -2343,28 +2450,55 @@ async function cloudDownload(isSilent) {
             const remote = res.record;
             const localTime  = state.updatedAt || 0;
             const remoteTime = remote.updatedAt || 0;
+
             if (remoteTime > localTime) {
-                // Merge
-                const map = new Map();
-                [...state.todos, ...(remote.todos || [])].forEach(t => map.set(t.id, t));
-                state.todos = Array.from(map.values());
-                const mergeG = (l, r) => { const m = new Map(); [...(l||[]),...(r||[])].forEach(g => m.set(g.id,g)); return Array.from(m.values()); };
+                // Merge todos by ID (remote wins for same id)
+                const todoMap = new Map();
+                [...(state.todos || []), ...(remote.todos || [])].forEach(t => todoMap.set(t.id, t));
+                state.todos = Array.from(todoMap.values());
+
+                // Merge goals
+                const mergeG = (l, r) => {
+                    const m = new Map();
+                    [...(l||[]),...(r||[])].forEach(g => m.set(g.id, g));
+                    return Array.from(m.values());
+                };
                 state.goals.weekly  = mergeG(state.goals.weekly,  remote.goals?.weekly);
                 state.goals.monthly = mergeG(state.goals.monthly, remote.goals?.monthly);
-                state.archives = { ...state.archives, ...(remote.archives || {}) };
+
+                // Merge archives (remote dates win)
+                state.archives = { ...(state.archives || {}), ...(remote.archives || {}) };
+
+                // Take best streak, categories, config
                 state.streak = Math.max(state.streak || 0, remote.streak || 0);
+                if (remote.categories?.length > (state.categories?.length || 0)) state.categories = remote.categories;
                 state.updatedAt = remote.updatedAt;
+
+                // Dedup by ID after merge
+                const seen = new Set();
+                state.todos = state.todos.filter(t => {
+                    if (seen.has(t.id)) return false;
+                    seen.add(t.id);
+                    return true;
+                });
+
                 localStorage.setItem(STABLE_KEY, JSON.stringify(state));
                 renderAll();
-                if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">Merged!</span>';
+                if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">✓ Merged from cloud!</span>';
                 updateCloudUI('success', 'Updated');
+                showToast('☁️ Synced from cloud', 'success');
             } else if (remoteTime < localTime) {
+                // Local is newer — push to cloud
                 cloudUpload(true);
             } else {
-                updateCloudUI('success', 'Synced');
+                updateCloudUI('success', 'In Sync');
+                if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">✓ Already up to date</span>';
             }
-        } else throw new Error(res.message);
-    } catch(e) { if (!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`; updateCloudUI('error', 'Conn Err'); }
+        } else throw new Error(res.message || 'Fetch failed');
+    } catch(e) {
+        if (!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">✗ ${e.message}</span>`;
+        updateCloudUI('error', 'Error');
+    }
 }
 
 // ═══════════════════════ IMPORT / EXPORT ═══════════════════════
