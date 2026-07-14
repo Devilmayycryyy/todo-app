@@ -399,6 +399,58 @@
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes confettiFall { to { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
 
+        /* ── EISENHOWER MATRIX ── */
+        .matrix-section { display: none; animation: slideUp 0.4s ease; }
+        .matrix-section.active { display: block; }
+        .matrix-hint { text-align:center; font-size:0.78rem; color:var(--text-secondary); margin-bottom:14px; font-weight:600; }
+        .matrix-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 12px;
+        }
+        .matrix-quadrant {
+            border-radius: 20px; padding: 16px;
+            min-height: 180px; border: 2px solid transparent;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            position: relative; overflow: hidden;
+        }
+        .matrix-quadrant.drag-over { box-shadow: 0 0 0 3px currentColor; }
+        .mq-do    { background: rgba(239,68,68,0.08);   border-color: rgba(239,68,68,0.2);   }
+        .mq-plan  { background: rgba(91,94,244,0.08);   border-color: rgba(91,94,244,0.2);   }
+        .mq-delegate { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+        .mq-drop  { background: rgba(107,114,128,0.06); border-color: rgba(107,114,128,0.15);}
+        .mq-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:12px; }
+        .mq-icon  { font-size:1.6rem; line-height:1; flex-shrink:0; }
+        .mq-label { font-size:0.8rem; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; }
+        .mq-sublabel { font-size:0.68rem; font-weight:600; opacity:0.65; margin-top:2px; }
+        .mq-do .mq-label    { color:#ef4444; }
+        .mq-plan .mq-label  { color:var(--accent); }
+        .mq-delegate .mq-label { color:#f59e0b; }
+        .mq-drop .mq-label  { color:var(--text-secondary); }
+        .mq-tasks { display:flex; flex-direction:column; gap:6px; min-height:60px; }
+        .mq-task-chip {
+            display:flex; align-items:center; gap:8px;
+            background:var(--bg-card); border-radius:10px;
+            padding:8px 10px; border:1px solid var(--border);
+            cursor:grab; transition:0.2s;
+            animation: slideUp 0.25s ease;
+        }
+        .mq-task-chip:active { cursor:grabbing; opacity:0.7; transform:scale(0.97); }
+        .mq-task-chip:hover { box-shadow:var(--shadow); transform:translateY(-1px); }
+        .mq-chip-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .mq-chip-text { flex:1; font-size:0.83rem; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .mq-chip-done { text-decoration:line-through; opacity:0.4; }
+        .mq-chip-check { width:18px; height:18px; border:1.5px solid var(--border); border-radius:5px; cursor:pointer; display:flex; justify-content:center; align-items:center; flex-shrink:0; transition:0.2s; }
+        .mq-chip-check:hover { border-color:var(--success); }
+        .mq-chip-check.checked { background:var(--success); border-color:var(--success); }
+        .mq-chip-check.checked::after { content:'✓'; color:white; font-size:11px; font-weight:900; }
+        .mq-empty { text-align:center; padding:16px 0; font-size:0.75rem; color:var(--text-secondary); opacity:0.6; }
+        .mq-axis-x { display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-secondary); font-weight:800; padding:0 4px; margin-top:6px; }
+        .mq-axis-y-wrap { display:flex; gap:12px; align-items:stretch; }
+        .mq-axis-y { writing-mode:vertical-rl; transform:rotate(180deg); font-size:0.68rem; color:var(--text-secondary); font-weight:800; letter-spacing:1px; display:flex; justify-content:center; opacity:0.6; }
+        .matrix-axes-grid { display:grid; grid-template-columns:18px 1fr; grid-template-rows:1fr 18px; gap:0; }
+
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -433,6 +485,7 @@
             </div>
             <div class="header-actions">
                 <button class="icon-btn" id="notifBtn" onclick="requestNotificationPermission()" title="Enable Notifications">🔔</button>
+                <button class="icon-btn" id="matrixBtn" onclick="toggleMatrix()" title="Eisenhower Matrix">⚡</button>
                 <div class="graph-toggle">
                     <button class="toggle-btn active" id="btn-week" onclick="setGraph('week')">Week</button>
                     <button class="toggle-btn" id="btn-month" onclick="setGraph('month')">Month</button>
@@ -499,6 +552,61 @@
             <span class="section-count" id="todayCount">0 tasks</span>
         </div>
         <div class="task-list" id="taskListDaily"></div>
+    </div>
+
+    <!-- EISENHOWER MATRIX -->
+    <div class="matrix-section" id="matrixSection">
+        <div class="section-title">
+            ⚡ Eisenhower Matrix
+            <span class="section-count" style="font-size:0.75rem">Drag tasks between quadrants</span>
+        </div>
+        <p class="matrix-hint">Tasks are sorted by Urgent (due soon / high priority) × Important (weekly/monthly goals)</p>
+        <div class="matrix-axes-grid">
+            <div class="mq-axis-y" style="grid-row:1;grid-column:1">IMPORTANT ↑</div>
+            <div style="grid-row:1;grid-column:2">
+                <div class="matrix-grid" id="matrixGrid">
+                    <!-- Q1: Do First -->
+                    <div class="matrix-quadrant mq-do" id="mq-do"
+                         ondragover="matrixDragOver(event,'do')" ondrop="matrixDrop(event,'do')" ondragleave="matrixDragLeave(event)">
+                        <div class="mq-header">
+                            <div class="mq-icon">🔥</div>
+                            <div><div class="mq-label">Do First</div><div class="mq-sublabel">Urgent + Important</div></div>
+                        </div>
+                        <div class="mq-tasks" id="mq-tasks-do"></div>
+                    </div>
+                    <!-- Q2: Schedule -->
+                    <div class="matrix-quadrant mq-plan" id="mq-plan"
+                         ondragover="matrixDragOver(event,'plan')" ondrop="matrixDrop(event,'plan')" ondragleave="matrixDragLeave(event)">
+                        <div class="mq-header">
+                            <div class="mq-icon">📅</div>
+                            <div><div class="mq-label">Schedule</div><div class="mq-sublabel">Not Urgent + Important</div></div>
+                        </div>
+                        <div class="mq-tasks" id="mq-tasks-plan"></div>
+                    </div>
+                    <!-- Q3: Delegate -->
+                    <div class="matrix-quadrant mq-delegate" id="mq-delegate"
+                         ondragover="matrixDragOver(event,'delegate')" ondrop="matrixDrop(event,'delegate')" ondragleave="matrixDragLeave(event)">
+                        <div class="mq-header">
+                            <div class="mq-icon">🤝</div>
+                            <div><div class="mq-label">Delegate</div><div class="mq-sublabel">Urgent + Not Important</div></div>
+                        </div>
+                        <div class="mq-tasks" id="mq-tasks-delegate"></div>
+                    </div>
+                    <!-- Q4: Drop -->
+                    <div class="matrix-quadrant mq-drop" id="mq-drop"
+                         ondragover="matrixDragOver(event,'drop')" ondrop="matrixDrop(event,'drop')" ondragleave="matrixDragLeave(event)">
+                        <div class="mq-header">
+                            <div class="mq-icon">🗑️</div>
+                            <div><div class="mq-label">Drop</div><div class="mq-sublabel">Not Urgent + Not Important</div></div>
+                        </div>
+                        <div class="mq-tasks" id="mq-tasks-drop"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="grid-row:2;grid-column:2">
+                <div class="mq-axis-x"><span>◀ NOT URGENT</span><span>URGENT ▶</span></div>
+            </div>
+        </div>
     </div>
 
     <!-- WEEKLY + MONTHLY GOALS -->
@@ -1004,6 +1112,7 @@ function renderAll() {
     renderGraph();
     renderStreak();
     renderMissedCarrySection();
+    renderMatrix(); // keep matrix in sync
 }
 
 function renderStreak() {
@@ -1483,7 +1592,131 @@ function sortTasks(list) {
 }
 
 // ═══════════════════════ GRAPH ═══════════════════════
+// ════════════════ EISENHOWER MATRIX ════════════════
+
+let matrixVisible = false;
+let matrixDragId  = null;
+
+function toggleMatrix() {
+    matrixVisible = !matrixVisible;
+    const sec = document.getElementById('matrixSection');
+    const btn = document.getElementById('matrixBtn');
+    if (matrixVisible) {
+        sec.classList.add('active');
+        btn.classList.add('active');
+        renderMatrix();
+    } else {
+        sec.classList.remove('active');
+        btn.classList.remove('active');
+    }
+}
+
+// Classify a task into a quadrant automatically, unless overridden manually
+function classifyTask(task) {
+    if (task.matrixQuadrant) return task.matrixQuadrant; // user-assigned
+
+    const todayKey = new Date().toLocaleDateString('en-CA');
+    const tomorrowKey = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toLocaleDateString('en-CA'); })();
+
+    // Urgency: high priority OR due today/overdue/tomorrow
+    const isUrgent = task.priority === 'high' ||
+        (task.dueDate && task.dueDate <= tomorrowKey);
+
+    // Importance: medium-or-high priority OR a recurring task OR has subtasks OR has notes
+    const isImportant = task.priority !== 'low' ||
+        (task.recurring && task.recurring !== 'none') ||
+        (task.subtasks && task.subtasks.length > 0) ||
+        (task.notes && task.notes.trim().length > 0) ||
+        task.isTransferred;
+
+    if (isUrgent && isImportant)  return 'do';
+    if (!isUrgent && isImportant) return 'plan';
+    if (isUrgent && !isImportant) return 'delegate';
+    return 'drop';
+}
+
+function renderMatrix() {
+    if (!matrixVisible) return;
+
+    const quadrantIds = ['do', 'plan', 'delegate', 'drop'];
+    const buckets = { do: [], plan: [], delegate: [], drop: [] };
+
+    // Sort all incomplete today tasks (completed tasks grayed out, still shown)
+    const filtered = state.activeFilter === 'All'
+        ? state.todos
+        : state.todos.filter(t => t.category === state.activeFilter);
+
+    filtered.forEach(t => {
+        const q = classifyTask(t);
+        buckets[q].push(t);
+    });
+
+    const pColors = { high:'var(--danger)', med:'var(--warning)', low:'var(--success)' };
+
+    quadrantIds.forEach(q => {
+        const el = document.getElementById(`mq-tasks-${q}`);
+        el.innerHTML = '';
+        if (buckets[q].length === 0) {
+            el.innerHTML = `<div class="mq-empty">Drop tasks here</div>`;
+            return;
+        }
+        buckets[q].forEach(task => {
+            const chip = document.createElement('div');
+            chip.className = 'mq-task-chip';
+            chip.draggable = true;
+            chip.dataset.id = task.id;
+            chip.innerHTML = `
+                <div class="mq-chip-check ${task.completed ? 'checked' : ''}"
+                     onclick="matrixToggleTask(${task.id})"></div>
+                <div class="mq-chip-dot" style="background:${pColors[task.priority]||'var(--border)'}"></div>
+                <span class="mq-chip-text ${task.completed ? 'mq-chip-done' : ''}"
+                      title="${escapeHtml(task.text)}">${escapeHtml(task.text)}</span>`;
+            chip.addEventListener('dragstart', e => {
+                matrixDragId = task.id;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => chip.style.opacity = '0.4', 0);
+            });
+            chip.addEventListener('dragend', () => { chip.style.opacity = '1'; });
+            el.appendChild(chip);
+        });
+    });
+}
+
+function matrixDragOver(e, quadrant) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.getElementById(`mq-${quadrant}`).classList.add('drag-over');
+}
+function matrixDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+function matrixDrop(e, quadrant) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!matrixDragId) return;
+    const task = state.todos.find(t => t.id == matrixDragId);
+    if (task) {
+        task.matrixQuadrant = quadrant; // override auto-classification
+        save();
+        renderMatrix();
+        showToast(`Moved to "${quadrant === 'do' ? 'Do First' : quadrant === 'plan' ? 'Schedule' : quadrant === 'delegate' ? 'Delegate' : 'Drop'}"`, 'success');
+    }
+    matrixDragId = null;
+}
+
+function matrixToggleTask(id) {
+    const task = state.todos.find(t => t.id == id);
+    if (!task) return;
+    task.completed = !task.completed;
+    task.isFresh = false;
+    if (task.completed) launchConfetti();
+    save();
+    renderAll();    // update main list count too
+    renderMatrix(); // refresh matrix
+}
+
 function renderGraph() {
+
     const container = document.getElementById('chartBars');
     container.innerHTML = '';
     const limit = state.graphMode === 'week' ? 7 : 30;
