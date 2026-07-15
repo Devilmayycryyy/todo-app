@@ -1022,6 +1022,7 @@ let state = {
     updatedAt: 0,
     streak: 0,
     lastPerfectDay: null,
+    deletedIds: {},   // tombstone map: { [taskId]: deletedAtTimestamp }
     config: { lastPriority: 'low', lastCategory: 'Personal' }
 };
 
@@ -1066,6 +1067,19 @@ function init() {
     if (!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
     if (state.streak === undefined) state.streak = 0;
     if (!state.lastPerfectDay) state.lastPerfectDay = null;
+
+    // Migrate old saves that don't have deletedIds yet
+    if (!state.deletedIds) state.deletedIds = {};
+
+    // Prune tombstones older than 30 days to prevent unbounded growth
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - THIRTY_DAYS;
+    Object.keys(state.deletedIds).forEach(k => {
+        if (state.deletedIds[k] < cutoff) delete state.deletedIds[k];
+    });
+
+    // Filter out any todos that somehow survived a deletion (e.g., from a legacy save)
+    state.todos = state.todos.filter(t => !state.deletedIds[t.id]);
 
     currentInput.priority = state.config.lastPriority || 'low';
     currentInput.category = state.config.lastCategory || (state.categories[0] || 'Personal');
@@ -1624,9 +1638,15 @@ function deleteTask(id, type) {
     const el = document.querySelector(`[data-id="${id}"]`);
     if (el) el.classList.add('deleting');
     setTimeout(() => {
+        // Soft-delete: record tombstone so deletion syncs to other devices
+        if (!state.deletedIds) state.deletedIds = {};
+        state.deletedIds[id] = Date.now();
+
+        // Also hard-remove from the active list
         const list = getList(type);
         const idx = list.findIndex(t => t.id == id);
         if (idx !== -1) list.splice(idx, 1);
+
         save();
         renderAll();
     }, 280);
@@ -2446,55 +2466,69 @@ async function cloudDownload(isSilent) {
     try {
         const req = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, { headers: { 'X-Master-Key': apiKey } });
         const res = await req.json();
-        if (req.ok) {
-            const remote = res.record;
-            const localTime  = state.updatedAt || 0;
-            const remoteTime = remote.updatedAt || 0;
+        if (!req.ok) throw new Error(res.message || 'Fetch failed');
 
-            if (remoteTime > localTime) {
-                // Merge todos by ID (remote wins for same id)
-                const todoMap = new Map();
-                [...(state.todos || []), ...(remote.todos || [])].forEach(t => todoMap.set(t.id, t));
-                state.todos = Array.from(todoMap.values());
+        const remote = res.record;
+        const localTime  = state.updatedAt || 0;
+        const remoteTime = remote.updatedAt || 0;
 
-                // Merge goals
-                const mergeG = (l, r) => {
-                    const m = new Map();
-                    [...(l||[]),...(r||[])].forEach(g => m.set(g.id, g));
-                    return Array.from(m.values());
-                };
-                state.goals.weekly  = mergeG(state.goals.weekly,  remote.goals?.weekly);
-                state.goals.monthly = mergeG(state.goals.monthly, remote.goals?.monthly);
+        // ── Always do a bidirectional merge so no task is ever missed ──
+        // 1. Merge tombstones (union of both sides)
+        const mergedDeleted = { ...(state.deletedIds || {}), ...(remote.deletedIds || {}) };
 
-                // Merge archives (remote dates win)
-                state.archives = { ...(state.archives || {}), ...(remote.archives || {}) };
+        // 2. Merge todos by ID – remote wins for same ID (remote is more recent)
+        const todoMap = new Map();
+        [...(state.todos || []), ...(remote.todos || [])].forEach(t => todoMap.set(t.id, t));
 
-                // Take best streak, categories, config
-                state.streak = Math.max(state.streak || 0, remote.streak || 0);
-                if (remote.categories?.length > (state.categories?.length || 0)) state.categories = remote.categories;
-                state.updatedAt = remote.updatedAt;
+        // 3. Purge any task whose ID appears in the merged tombstone
+        let mergedTodos = Array.from(todoMap.values()).filter(t => !mergedDeleted[t.id]);
 
-                // Dedup by ID after merge
-                const seen = new Set();
-                state.todos = state.todos.filter(t => {
-                    if (seen.has(t.id)) return false;
-                    seen.add(t.id);
-                    return true;
-                });
+        // 4. Dedup in case somehow same ID slipped in twice
+        const seen = new Set();
+        mergedTodos = mergedTodos.filter(t => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+        });
 
-                localStorage.setItem(STABLE_KEY, JSON.stringify(state));
-                renderAll();
-                if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">✓ Merged from cloud!</span>';
-                updateCloudUI('success', 'Updated');
-                showToast('☁️ Synced from cloud', 'success');
-            } else if (remoteTime < localTime) {
-                // Local is newer — push to cloud
-                cloudUpload(true);
-            } else {
-                updateCloudUI('success', 'In Sync');
-                if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">✓ Already up to date</span>';
-            }
-        } else throw new Error(res.message || 'Fetch failed');
+        // 5. Merge goals
+        const mergeG = (l, r) => {
+            const m = new Map();
+            [...(l||[]),...(r||[])].forEach(g => m.set(g.id, g));
+            return Array.from(m.values());
+        };
+
+        // 6. Apply everything
+        state.todos           = mergedTodos;
+        state.deletedIds      = mergedDeleted;
+        state.goals.weekly    = mergeG(state.goals.weekly,  remote.goals?.weekly);
+        state.goals.monthly   = mergeG(state.goals.monthly, remote.goals?.monthly);
+        state.archives        = { ...(state.archives || {}), ...(remote.archives || {}) };
+        state.streak          = Math.max(state.streak || 0, remote.streak || 0);
+        if ((remote.categories?.length || 0) > (state.categories?.length || 0)) {
+            state.categories = remote.categories;
+        }
+
+        // 7. Stamp with the newer timestamp (or now if we merged new content)
+        const hadNewLocal  = localTime  > remoteTime;
+        const hadNewRemote = remoteTime > localTime;
+        state.updatedAt = hadNewLocal ? localTime : (hadNewRemote ? remoteTime : localTime);
+
+        // 8. Persist merged state locally
+        localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+        renderAll();
+
+        // 9. If remote was stale (local had newer or equal data), push merged state back
+        //    so the other device gets the full picture on its next poll
+        if (localTime >= remoteTime || Object.keys(mergedDeleted).length > Object.keys(remote.deletedIds || {}).length) {
+            state.updatedAt = Date.now(); // bump timestamp so other devices see this as newer
+            localStorage.setItem(STABLE_KEY, JSON.stringify(state));
+            await cloudUpload(true);
+        }
+
+        if (!isSilent) statusEl.innerHTML = '<span style="color:var(--success)">✓ Synced!</span>';
+        updateCloudUI('success', 'In Sync');
+
     } catch(e) {
         if (!isSilent) statusEl.innerHTML = `<span style="color:var(--danger)">✗ ${e.message}</span>`;
         updateCloudUI('error', 'Error');
