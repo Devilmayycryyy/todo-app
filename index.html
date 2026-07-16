@@ -1171,16 +1171,28 @@ function checkDayRollover() {
     const todayKey = new Date().toLocaleDateString('en-CA');
     if (!state.lastLoginDate) {
         state.lastLoginDate = todayKey;
+        generateRecurringTasks(); // generate recurring on first ever login
         save();
         return;
     }
-    if (state.lastLoginDate === todayKey) return;
+    if (state.lastLoginDate === todayKey) {
+        // Same day — still ensure recurring tasks exist (handles app reopen same day)
+        generateRecurringTasks();
+        return;
+    }
 
     // A new day has begun!
     const previousDate = state.lastLoginDate;
     const previousTasks = state.todos;
-    const completed   = previousTasks.filter(t => t.completed);
-    const incomplete  = previousTasks.filter(t => !t.completed);
+
+    // Only consider tasks that were genuinely on yesterday's list:
+    // exclude any tasks that were transferred IN from an even earlier day
+    // and exclude recurring-generated tasks (they re-generate each day)
+    const completed  = previousTasks.filter(t => t.completed);
+    const incomplete = previousTasks.filter(t =>
+        !t.completed &&
+        !t.recurringSourceId  // recurring copies re-generate automatically — don't carry them
+    );
 
     // Archive completed tasks
     if (!state.archives[previousDate]) state.archives[previousDate] = { completed: [], missed: [], transferred: [] };
@@ -1189,12 +1201,11 @@ function checkDayRollover() {
     // Update streak
     updateStreak(previousDate, completed.length, previousTasks.length);
 
+    state.todos = [];              // clear old day's list
+    generateRecurringTasks();     // always seed today's recurring tasks first
+
     if (incomplete.length > 0) {
         pendingRolloverTasks = incomplete;
-        state.todos = [];  // Clear old day first
-
-        // NOW generate recurring tasks into the fresh empty list
-        generateRecurringTasks();
 
         document.getElementById('rolloverCount').innerText = incomplete.length;
 
@@ -1219,10 +1230,8 @@ function checkDayRollover() {
         }
 
         openModal('rolloverModal');
-    } else {
-        state.todos = [];  // Clear old day
-        generateRecurringTasks();  // Add recurring tasks for today
     }
+    // (no else needed — todos already cleared and recurring already seeded above)
 
     state.lastLoginDate = todayKey;
     save();
@@ -1301,40 +1310,56 @@ function handleRollover(action) {
 
 // ── RECURRING TASKS ──
 function generateRecurringTasks() {
-    const todayKey = new Date().toLocaleDateString('en-CA');
+    const todayKey  = new Date().toLocaleDateString('en-CA');
     const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-    const allGoalTasks = [...(state.goals.weekly || []), ...(state.goals.monthly || [])];
 
-    allGoalTasks.forEach((t, i) => {
+    // Collect ALL tasks that have a recurring schedule set
+    // (from goals AND from the daily list itself)
+    const allRecurring = [
+        ...(state.goals.weekly  || []),
+        ...(state.goals.monthly || []),
+        ...(state.todos || []).filter(t => t.recurring && t.recurring !== 'none' && !t.recurringSourceId)
+    ];
+
+    allRecurring.forEach((t, i) => {
         if (!t.recurring || t.recurring === 'none') return;
-        // Check if already added today
-        const alreadyAdded = state.todos.some(d => d.recurringSourceId === t.id && d.recurringDate === todayKey);
+
+        // Dedup check: don't add if we already have a copy for today
+        // For goal-sourced tasks use recurringSourceId+date
+        // For direct daily tasks use text+recurring+date
+        const alreadyAdded = state.todos.some(d =>
+            d.recurringDate === todayKey && (
+                (d.recurringSourceId && d.recurringSourceId === t.id) ||
+                (!d.recurringSourceId && d.text === t.text && d.recurring === 'none' && d.recurringTextKey === t.text)
+            )
+        );
         if (alreadyAdded) return;
 
         const shouldAdd =
             t.recurring === 'daily' ||
             (t.recurring === 'weekdays' && isWeekday) ||
-            (t.recurring === 'weekly' && dayOfWeek === new Date(t.timestamp).getDay());
+            (t.recurring === 'weekly'   && dayOfWeek === new Date(t.timestamp || Date.now()).getDay());
 
-        if (shouldAdd) {
-            state.todos.unshift({
-                id: Date.now() + i + 1,
-                text: t.text,
-                priority: t.priority,
-                category: t.category,
-                notes: t.notes || '',
-                subtasks: [],
-                completed: false,
-                timestamp: new Date().toISOString(),
-                isTransferred: false,
-                isFresh: true,
-                recurringSourceId: t.id,
-                recurringDate: todayKey,
-                dueDate: '',
-                recurring: 'none'
-            });
-        }
+        if (!shouldAdd) return;
+
+        state.todos.push({
+            id: Date.now() + Math.floor(Math.random() * 10000) + i,
+            text: t.text,
+            priority: t.priority,
+            category: t.category,
+            notes: t.notes || '',
+            subtasks: [],
+            completed: false,
+            timestamp: new Date().toISOString(),
+            isTransferred: false,
+            isFresh: true,
+            recurringSourceId: t.id || null,
+            recurringTextKey: t.text,   // fallback dedup key for direct daily tasks
+            recurringDate: todayKey,
+            dueDate: '',
+            recurring: 'none'           // the copy itself is not recurring
+        });
     });
 }
 
