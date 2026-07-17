@@ -1298,7 +1298,13 @@ function handleRollover(action) {
         sortTasks(state.todos);
         showToast(`📅 ${pendingRolloverTasks.length} task(s) transferred — marked as Missed yesterday`, 'warning');
     } else {
-        // Archive as missed only
+        // Archive as missed — also auto-dismiss so they don't clog the missed section
+        // The user already decided to not carry them; no need to show them again
+        if (!state.archives[previousDate].dismissed) state.archives[previousDate].dismissed = [];
+        pendingRolloverTasks.forEach(t => {
+            if (!state.archives[previousDate].dismissed.includes(String(t.id)))
+                state.archives[previousDate].dismissed.push(String(t.id));
+        });
         showToast('📁 Tasks archived as Missed', 'error');
     }
 
@@ -1393,7 +1399,7 @@ function renderMissedCarrySection() {
     const section = document.getElementById('missedCarrySection');
     const todayKey = new Date().toLocaleDateString('en-CA');
 
-    // Gather missed tasks from last 7 days that aren't transferred and not already in todos
+    // Gather missed tasks from last 7 days that aren't transferred/dismissed
     let missedItems = [];
     for (let i = 1; i <= 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
@@ -1401,15 +1407,15 @@ function renderMissedCarrySection() {
         const arch = state.archives[dateKey];
         if (!arch) continue;
 
-        const missed = arch.missed || [];
-        const transferred = arch.transferred || [];
+        const missed       = arch.missed       || [];
+        const transferred  = arch.transferred  || [];
+        const dismissed    = arch.dismissed    || []; // newly tracked
         const transferredIds = new Set(transferred.map(t => t.id));
+        const dismissedIds   = new Set(dismissed.map(t => String(t)));
 
-        // Only show tasks that were missed but NOT transferred
-        missed.filter(t => !transferredIds.has(t.id)).forEach(t => {
-            // Check if this task isn't already in today's todos (re-added manually)
-            missedItems.push({ task: t, date: dateKey });
-        });
+        missed
+            .filter(t => !transferredIds.has(t.id) && !dismissedIds.has(String(t.id)))
+            .forEach(t => missedItems.push({ task: t, date: dateKey }));
     }
 
     if (missedItems.length === 0) { section.style.display = 'none'; return; }
@@ -1418,14 +1424,27 @@ function renderMissedCarrySection() {
     section.innerHTML = `
         <div class="missed-section">
             <div class="missed-section-title">
-                ⚠️ Missed Tasks
-                <span style="font-size:0.8em;font-weight:600;color:var(--text-secondary)">(Last 7 days)</span>
+                <span>⚠️ Missed Tasks</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">(Last 7 days)</span>
+                    <button onclick="dismissAllMissed()" style="
+                        background:transparent;border:1px solid var(--border);
+                        color:var(--text-secondary);padding:3px 10px;border-radius:8px;
+                        font-size:0.7rem;font-weight:800;cursor:pointer;
+                        transition:all 0.2s;font-family:var(--font);
+                    " onmouseover="this.style.background='var(--danger)';this.style.color='white';this.style.borderColor='var(--danger)'"
+                       onmouseout="this.style.background='transparent';this.style.color='var(--text-secondary)';this.style.borderColor='var(--border)'">
+                        ✕ Clear All
+                    </button>
+                </div>
             </div>
             ${missedItems.map(({ task, date }) => {
                 const d = new Date(date + 'T00:00:00');
                 const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
-                return `<div class="missed-task-row">
-                    <span class="missed-x">✗</span>
+                return `<div class="missed-task-row" id="missed-row-${task.id}">
+                    <span class="missed-x" onclick="dismissMissedTask('${date}','${task.id}')" title="Dismiss"
+                          style="cursor:pointer;opacity:0.7;transition:opacity 0.2s"
+                          onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">✗</span>
                     <div style="flex:1;min-width:0;">
                         <div class="missed-task-name">${escapeHtml(task.text)}</div>
                         <div style="font-size:0.68rem;color:var(--text-secondary);font-weight:700;">${dateStr} · ${task.category || ''}</div>
@@ -1434,6 +1453,55 @@ function renderMissedCarrySection() {
                 </div>`;
             }).join('')}
         </div>`;
+}
+
+function dismissMissedTask(dateKey, taskId) {
+    if (!state.archives[dateKey]) return;
+    if (!state.archives[dateKey].dismissed) state.archives[dateKey].dismissed = [];
+    state.archives[dateKey].dismissed.push(String(taskId));
+    save();
+    // Animate out then re-render
+    const row = document.getElementById(`missed-row-${taskId}`);
+    if (row) {
+        row.style.transition = 'all 0.3s cubic-bezier(0.4,0,0.6,1)';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(20px)';
+        row.style.maxHeight = row.offsetHeight + 'px';
+        setTimeout(() => { row.style.maxHeight = '0'; row.style.padding = '0'; row.style.margin = '0'; }, 280);
+        setTimeout(() => renderMissedCarrySection(), 420);
+    } else {
+        renderMissedCarrySection();
+    }
+}
+
+function dismissAllMissed() {
+    for (let i = 1; i <= 7; i++) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const dateKey = d.toLocaleDateString('en-CA');
+        const arch = state.archives[dateKey];
+        if (!arch) continue;
+        const missed      = arch.missed      || [];
+        const transferred = arch.transferred || [];
+        const transferredIds = new Set(transferred.map(t => t.id));
+        if (!arch.dismissed) arch.dismissed = [];
+        missed
+            .filter(t => !transferredIds.has(t.id))
+            .forEach(t => {
+                if (!arch.dismissed.includes(String(t.id)))
+                    arch.dismissed.push(String(t.id));
+            });
+    }
+    save();
+    const section = document.getElementById('missedCarrySection');
+    section.style.transition = 'all 0.35s ease';
+    section.style.opacity = '0';
+    section.style.transform = 'translateY(-8px)';
+    setTimeout(() => {
+        section.style.opacity = '';
+        section.style.transform = '';
+        renderMissedCarrySection();
+    }, 360);
+    showToast('🗑️ Missed tasks cleared', 'success');
 }
 
 function rescheduleTask(dateKey, taskId) {
@@ -2630,3 +2698,4 @@ init();
 </script>
 </body>
 </html>
+            --bg-body: #f0f4ff;
