@@ -1171,49 +1171,55 @@ function checkDayRollover() {
     const todayKey = new Date().toLocaleDateString('en-CA');
     if (!state.lastLoginDate) {
         state.lastLoginDate = todayKey;
-        generateRecurringTasks(); // generate recurring on first ever login
+        generateRecurringTasks();
         save();
         return;
     }
     if (state.lastLoginDate === todayKey) {
-        // Same day — still ensure recurring tasks exist (handles app reopen same day)
+        // Same day — ensure recurring tasks exist (handles app reopen same day)
         generateRecurringTasks();
         return;
     }
 
     // A new day has begun!
-    const previousDate = state.lastLoginDate;
+    const previousDate  = state.lastLoginDate;
     const previousTasks = state.todos;
 
-    // Only consider tasks that were genuinely on yesterday's list:
-    // exclude any tasks that were transferred IN from an even earlier day
-    // and exclude recurring-generated tasks (they re-generate each day)
+    // Separate completed vs genuinely incomplete non-recurring tasks
     const completed  = previousTasks.filter(t => t.completed);
     const incomplete = previousTasks.filter(t =>
         !t.completed &&
-        !t.recurringSourceId  // recurring copies re-generate automatically — don't carry them
+        !t.recurringSourceId  // recurring copies re-generate; don't carry them
     );
 
-    // Archive completed tasks
-    if (!state.archives[previousDate]) state.archives[previousDate] = { completed: [], missed: [], transferred: [] };
-    if (completed.length > 0) state.archives[previousDate].completed = completed;
+    // Capture recurring master tasks from the daily list BEFORE wiping it
+    // (generateRecurringTasks needs these to spawn today's copies)
+    const recurringMasters = previousTasks.filter(t =>
+        t.recurring && t.recurring !== 'none' && !t.recurringSourceId
+    );
+
+    // Archive completed tasks under yesterday's date
+    if (!state.archives[previousDate])
+        state.archives[previousDate] = { completed: [], missed: [], transferred: [], dismissed: [] };
+    if (completed.length > 0)
+        state.archives[previousDate].completed = completed;
 
     // Update streak
     updateStreak(previousDate, completed.length, previousTasks.length);
 
-    state.todos = [];              // clear old day's list
-    generateRecurringTasks();     // always seed today's recurring tasks first
+    // Clear old day's list, then seed today's recurring tasks
+    state.todos = [];
+    generateRecurringTasks(recurringMasters); // pass saved masters
 
     if (incomplete.length > 0) {
         pendingRolloverTasks = incomplete;
 
         document.getElementById('rolloverCount').innerText = incomplete.length;
 
-        // Format previous date for display
         const pd = new Date(previousDate + 'T00:00:00');
-        document.getElementById('rolloverDateLabel').innerText = pd.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+        document.getElementById('rolloverDateLabel').innerText =
+            pd.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
 
-        // Show task preview
         const preview = document.getElementById('rolloverTaskPreview');
         preview.innerHTML = '';
         incomplete.slice(0, 5).forEach(t => {
@@ -1225,13 +1231,11 @@ function checkDayRollover() {
                     <span style="font-size:0.7rem;color:var(--text-secondary)">${t.category || ''}</span>
                 </div>`;
         });
-        if (incomplete.length > 5) {
+        if (incomplete.length > 5)
             preview.innerHTML += `<div style="text-align:center;font-size:0.78rem;color:var(--text-secondary);padding:6px">+${incomplete.length - 5} more...</div>`;
-        }
 
         openModal('rolloverModal');
     }
-    // (no else needed — todos already cleared and recurring already seeded above)
 
     state.lastLoginDate = todayKey;
     save();
@@ -1315,29 +1319,38 @@ function handleRollover(action) {
 }
 
 // ── RECURRING TASKS ──
-function generateRecurringTasks() {
+// extraMasters: optional array of recurring task objects to include
+// (used on rollover to carry over master tasks before todos is wiped)
+function generateRecurringTasks(extraMasters = []) {
     const todayKey  = new Date().toLocaleDateString('en-CA');
-    const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat
+    const dayOfWeek = new Date().getDay();
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
-    // Collect ALL tasks that have a recurring schedule set
-    // (from goals AND from the daily list itself)
+    // Collect ALL recurring master tasks:
+    //  - goals lists
+    //  - current daily todos that have a recurring schedule (same-day reopen)
+    //  - extraMasters passed in from rollover (yesterday's recurring masters)
+    const seen = new Set();
     const allRecurring = [
         ...(state.goals.weekly  || []),
         ...(state.goals.monthly || []),
-        ...(state.todos || []).filter(t => t.recurring && t.recurring !== 'none' && !t.recurringSourceId)
-    ];
+        ...(state.todos || []).filter(t => t.recurring && t.recurring !== 'none' && !t.recurringSourceId),
+        ...extraMasters
+    ].filter(t => {
+        // Deduplicate masters by ID so we don't spawn two copies
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+    });
 
     allRecurring.forEach((t, i) => {
         if (!t.recurring || t.recurring === 'none') return;
 
-        // Dedup check: don't add if we already have a copy for today
-        // For goal-sourced tasks use recurringSourceId+date
-        // For direct daily tasks use text+recurring+date
+        // Don't add if a copy already exists for today
         const alreadyAdded = state.todos.some(d =>
             d.recurringDate === todayKey && (
                 (d.recurringSourceId && d.recurringSourceId === t.id) ||
-                (!d.recurringSourceId && d.text === t.text && d.recurring === 'none' && d.recurringTextKey === t.text)
+                (!d.recurringSourceId && d.recurringTextKey === t.text)
             )
         );
         if (alreadyAdded) return;
@@ -1350,7 +1363,7 @@ function generateRecurringTasks() {
         if (!shouldAdd) return;
 
         state.todos.push({
-            id: Date.now() + Math.floor(Math.random() * 10000) + i,
+            id: Date.now() + Math.floor(Math.random() * 100000) + i,
             text: t.text,
             priority: t.priority,
             category: t.category,
@@ -1361,10 +1374,10 @@ function generateRecurringTasks() {
             isTransferred: false,
             isFresh: true,
             recurringSourceId: t.id || null,
-            recurringTextKey: t.text,   // fallback dedup key for direct daily tasks
+            recurringTextKey: t.text,
             recurringDate: todayKey,
             dueDate: '',
-            recurring: 'none'           // the copy itself is not recurring
+            recurring: 'none'
         });
     });
 }
@@ -1771,12 +1784,16 @@ function addSubtask(taskId, type) {
     task.subtasks.push({ text, done: false });
     inp.value = '';
     save();
+    // Targeted re-render: preserve open state
+    const area = document.getElementById(`sub-${taskId}`);
+    const wasActive = area?.classList.contains('active');
     renderAll();
-    // Reopen subtask area
-    setTimeout(() => {
-        const area = document.getElementById(`sub-${taskId}`);
-        if (area) area.classList.add('active');
-    }, 50);
+    if (wasActive) {
+        requestAnimationFrame(() => {
+            const newArea = document.getElementById(`sub-${taskId}`);
+            if (newArea) newArea.classList.add('active');
+        });
+    }
 }
 
 function toggleSubtask(taskId, idx, type) {
@@ -1784,11 +1801,36 @@ function toggleSubtask(taskId, idx, type) {
     if (!task?.subtasks?.[idx]) return;
     task.subtasks[idx].done = !task.subtasks[idx].done;
     save();
-    renderAll();
-    setTimeout(() => {
-        const area = document.getElementById(`sub-${taskId}`);
-        if (area) area.classList.add('active');
-    }, 50);
+
+    // Update DOM in-place to avoid jittery collapse/expand animation
+    const done  = task.subtasks.filter(s => s.done).length;
+    const total = task.subtasks.length;
+    const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+
+    // Update progress bar
+    const bar = document.querySelector(`#sub-${taskId} .sub-bar`);
+    if (bar) bar.style.width = pct + '%';
+
+    // Update the specific checkbox
+    const checks = document.querySelectorAll(`#sub-${taskId} .sub-check`);
+    if (checks[idx]) {
+        checks[idx].classList.toggle('checked', task.subtasks[idx].done);
+    }
+
+    // Update subtask text strikethrough
+    const texts = document.querySelectorAll(`#sub-${taskId} .sub-text`);
+    if (texts[idx]) {
+        texts[idx].style.textDecoration = task.subtasks[idx].done ? 'line-through' : '';
+        texts[idx].style.opacity = task.subtasks[idx].done ? '0.45' : '1';
+    }
+
+    // If all done, also update the parent task card's check visually
+    if (pct === 100) {
+        const cardCheck = document.querySelector(`[data-id="${taskId}"] .task-check`);
+        if (cardCheck) {
+            cardCheck.classList.add('checked');
+        }
+    }
 }
 
 function deleteSubtask(taskId, idx, type) {
@@ -1796,11 +1838,16 @@ function deleteSubtask(taskId, idx, type) {
     if (!task?.subtasks) return;
     task.subtasks.splice(idx, 1);
     save();
+    // Minimal re-render: only update the subtask area, keep panel open
+    const area = document.getElementById(`sub-${taskId}`);
+    const wasActive = area?.classList.contains('active');
     renderAll();
-    setTimeout(() => {
-        const area = document.getElementById(`sub-${taskId}`);
-        if (area) area.classList.add('active');
-    }, 50);
+    if (wasActive) {
+        requestAnimationFrame(() => {
+            const newArea = document.getElementById(`sub-${taskId}`);
+            if (newArea) newArea.classList.add('active');
+        });
+    }
 }
 
 function editSubText(el, taskId, idx, type) {
