@@ -1150,7 +1150,7 @@ function init() {
     document.getElementById('goalInputName').addEventListener('keypress', e => { if (e.key === 'Enter') document.getElementById('btnSaveGoal').click(); });
     document.getElementById('editTaskTitle').addEventListener('keypress', e => { if (e.key === 'Enter') saveTaskEdit(); });
 
-    // Visibility change
+    // Visibility change — re-check rollover when tab regains focus
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             checkDayRollover();
@@ -1158,9 +1158,6 @@ function init() {
                 setTimeout(() => cloudDownload(true), 800);
         }
     });
-
-    // Check recurring tasks
-    generateRecurringTasks();
 
     // Check overdue tasks
     renderMissedCarrySection();
@@ -1302,12 +1299,16 @@ function handleRollover(action) {
         sortTasks(state.todos);
         showToast(`📅 ${pendingRolloverTasks.length} task(s) transferred — marked as Missed yesterday`, 'warning');
     } else {
-        // Archive as missed — also auto-dismiss so they don't clog the missed section
-        // The user already decided to not carry them; no need to show them again
+        // Archive as missed — auto-dismiss from missed section
         if (!state.archives[previousDate].dismissed) state.archives[previousDate].dismissed = [];
+        if (!state.deletedIds) state.deletedIds = {};
+
         pendingRolloverTasks.forEach(t => {
+            // Dismiss from missed section UI
             if (!state.archives[previousDate].dismissed.includes(String(t.id)))
                 state.archives[previousDate].dismissed.push(String(t.id));
+            // Tombstone the original ID so cloud sync can NEVER resurrect it into today's list
+            state.deletedIds[t.id] = Date.now();
         });
         showToast('📁 Tasks archived as Missed', 'error');
     }
@@ -2612,18 +2613,32 @@ async function cloudDownload(isSilent) {
         const localTime  = state.updatedAt || 0;
         const remoteTime = remote.updatedAt || 0;
 
-        // ── Always do a bidirectional merge so no task is ever missed ──
         // 1. Merge tombstones (union of both sides)
         const mergedDeleted = { ...(state.deletedIds || {}), ...(remote.deletedIds || {}) };
 
-        // 2. Merge todos by ID – remote wins for same ID (remote is more recent)
+        // 2. Merge todos by ID – remote wins for same ID
         const todoMap = new Map();
         [...(state.todos || []), ...(remote.todos || [])].forEach(t => todoMap.set(t.id, t));
 
-        // 3. Purge any task whose ID appears in the merged tombstone
+        // 3. Purge tombstoned tasks
         let mergedTodos = Array.from(todoMap.values()).filter(t => !mergedDeleted[t.id]);
 
-        // 4. Dedup in case somehow same ID slipped in twice
+        // 4. KEY FIX: strip out completed tasks that belong to a PREVIOUS date.
+        //    This prevents cloud sync from resurrecting yesterday's done tasks.
+        const todayKey = new Date().toLocaleDateString('en-CA');
+        const lastLogin = state.lastLoginDate || todayKey;
+        if (lastLogin === todayKey) {
+            // Rollover has already run today — remove any completed tasks
+            // whose recurringDate or timestamp is from before today
+            mergedTodos = mergedTodos.filter(t => {
+                if (!t.completed) return true;  // keep all incomplete tasks
+                // Keep completed tasks that were added today
+                const taskDate = (t.recurringDate || (t.timestamp ? t.timestamp.slice(0,10) : null));
+                return taskDate === todayKey;    // drop completed tasks from prior days
+            });
+        }
+
+        // 5. Dedup
         const seen = new Set();
         mergedTodos = mergedTodos.filter(t => {
             if (seen.has(t.id)) return false;
@@ -2631,14 +2646,14 @@ async function cloudDownload(isSilent) {
             return true;
         });
 
-        // 5. Merge goals
+        // 6. Merge goals
         const mergeG = (l, r) => {
             const m = new Map();
             [...(l||[]),...(r||[])].forEach(g => m.set(g.id, g));
             return Array.from(m.values());
         };
 
-        // 6. Apply everything
+        // 7. Apply merged state
         state.todos           = mergedTodos;
         state.deletedIds      = mergedDeleted;
         state.goals.weekly    = mergeG(state.goals.weekly,  remote.goals?.weekly);
@@ -2649,19 +2664,23 @@ async function cloudDownload(isSilent) {
             state.categories = remote.categories;
         }
 
-        // 7. Stamp with the newer timestamp (or now if we merged new content)
-        const hadNewLocal  = localTime  > remoteTime;
-        const hadNewRemote = remoteTime > localTime;
-        state.updatedAt = hadNewLocal ? localTime : (hadNewRemote ? remoteTime : localTime);
+        // 8. Preserve the correct lastLoginDate (always keep today's, not remote's old value)
+        if (remote.lastLoginDate && remote.lastLoginDate > (state.lastLoginDate || '')) {
+            // only accept remote's login date if it's newer, but never go backwards past today
+            state.lastLoginDate = state.lastLoginDate || remote.lastLoginDate;
+        }
 
-        // 8. Persist merged state locally
+        // 9. Stamp timestamp
+        const hadNewLocal  = localTime  > remoteTime;
+        state.updatedAt = hadNewLocal ? localTime : (remoteTime || localTime);
+
+        // 10. Persist locally and re-render
         localStorage.setItem(STABLE_KEY, JSON.stringify(state));
         renderAll();
 
-        // 9. If remote was stale (local had newer or equal data), push merged state back
-        //    so the other device gets the full picture on its next poll
+        // 11. Push merged state back if local was newer or we have more deletions
         if (localTime >= remoteTime || Object.keys(mergedDeleted).length > Object.keys(remote.deletedIds || {}).length) {
-            state.updatedAt = Date.now(); // bump timestamp so other devices see this as newer
+            state.updatedAt = Date.now();
             localStorage.setItem(STABLE_KEY, JSON.stringify(state));
             await cloudUpload(true);
         }
