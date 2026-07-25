@@ -1206,10 +1206,18 @@ function checkDayRollover() {
 
     // Clear old day's list, then seed today's recurring tasks
     state.todos = [];
-    generateRecurringTasks(recurringMasters); // pass saved masters
+    generateRecurringTasks(recurringMasters);
 
     if (incomplete.length > 0) {
         pendingRolloverTasks = incomplete;
+
+        // PRE-TOMBSTONE all original IDs RIGHT NOW before any cloud sync fires.
+        // This is the definitive fix for duplication:
+        //   - If user picks Transfer  → new copies get new IDs (not tombstoned) ✓
+        //   - If user picks Archive   → tombstones stay, originals blocked ✓
+        //   - If cloud sync fires while modal is open → originals blocked by tombstone ✓
+        if (!state.deletedIds) state.deletedIds = {};
+        incomplete.forEach(t => { state.deletedIds[t.id] = Date.now(); });
 
         document.getElementById('rolloverCount').innerText = incomplete.length;
 
@@ -1280,7 +1288,7 @@ function handleRollover(action) {
     state.archives[previousDate].missed = [...pendingRolloverTasks];
 
     if (action === 'transfer') {
-        // Add to today WITH transferred badge, but ALSO keep as missed in yesterday
+        // Create new copies with new IDs (originals already tombstoned in checkDayRollover)
         const transferred = pendingRolloverTasks.map((t, i) => ({
             ...t,
             id: Date.now() + i,
@@ -1288,16 +1296,15 @@ function handleRollover(action) {
             completed: false,
             isTransferred: true,
             transferredFrom: previousDate,
-            // Clear completion state
             subtasks: (t.subtasks || []).map(s => ({ ...s, done: false }))
         }));
 
-        // Also record in archive that these were transferred
+        // Record in archive
         state.archives[previousDate].transferred = [...pendingRolloverTasks];
 
         state.todos = [...transferred, ...state.todos];
         sortTasks(state.todos);
-        showToast(`📅 ${pendingRolloverTasks.length} task(s) transferred — marked as Missed yesterday`, 'warning');
+        showToast(`📅 ${pendingRolloverTasks.length} task(s) transferred`, 'warning');
     } else {
         // Archive as missed — auto-dismiss from missed section
         if (!state.archives[previousDate].dismissed) state.archives[previousDate].dismissed = [];
