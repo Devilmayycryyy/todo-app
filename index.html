@@ -1642,8 +1642,9 @@ function createTaskCard(task, type) {
                 ${dueDateHtml}
             </div>
             <div class="task-actions">
-                <div class="action-icon pomo" onclick="startPomodoro(${tid},'` + escapeHtml(task.text).replace(/'/g,"\\'") + `')" title="Focus (Pomodoro)">🍅</div>
+                <div class="action-icon pomo" onclick="startPomodoro(${tid},'` + escapeHtml(task.text).replace(/'/g,"\\'")+  `')" title="Focus (Pomodoro)">🍅</div>
                 <div class="action-icon" onclick="openReminderModal(${tid})" title="Reminder">⏰</div>
+                <div class="action-icon" onclick="duplicateTask(${tid},'${type}')" title="Duplicate">📋</div>
                 <div class="action-icon" onclick="openEditModal(${tid},'${type}')" title="Edit">✏️</div>
                 <div class="action-icon del" onclick="deleteTask(${tid},'${type}')" title="Delete">🗑</div>
                 ${subTotal > 0 ? `<div class="action-icon chevron-icon" id="chev-${tid}" onclick="toggleSubtasks(${tid})">▾</div>` : `<div class="action-icon" onclick="toggleSubtasks(${tid})">▾</div>`}
@@ -1772,6 +1773,42 @@ function getList(type) {
     return state.goals.monthly;
 }
 
+// ── DUPLICATE TASK ──
+function duplicateTask(id, type) {
+    const list = getList(type);
+    const original = list.find(t => t.id == id);
+    if (!original) return;
+
+    const copy = {
+        ...original,
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        completed: false,
+        isFresh: true,
+        isTransferred: false,
+        // Deep-copy subtasks, all reset to incomplete
+        subtasks: (original.subtasks || []).map(s => ({ text: s.text, done: false }))
+    };
+
+    // Insert right after the original
+    const idx = list.findIndex(t => t.id == id);
+    list.splice(idx + 1, 0, copy);
+
+    save();
+    renderAll();
+    showToast('📋 Task duplicated!', 'success');
+
+    // Briefly highlight the new card
+    requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-id="${copy.id}"]`);
+        if (el) {
+            el.style.outline = '2px solid var(--accent)';
+            el.style.boxShadow = '0 0 0 4px var(--accent-glow)';
+            setTimeout(() => { el.style.outline = ''; el.style.boxShadow = ''; }, 1200);
+        }
+    });
+}
+
 // ── SUBTASKS ──
 function toggleSubtasks(id) {
     const area = document.getElementById(`sub-${id}`);
@@ -1808,36 +1845,53 @@ function toggleSubtask(taskId, idx, type) {
     const task = getList(type).find(t => t.id == taskId);
     if (!task?.subtasks?.[idx]) return;
     task.subtasks[idx].done = !task.subtasks[idx].done;
-    save();
 
-    // Update DOM in-place to avoid jittery collapse/expand animation
     const done  = task.subtasks.filter(s => s.done).length;
     const total = task.subtasks.length;
     const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+    const allDone = pct === 100;
 
-    // Update progress bar
+    // Auto-complete / auto-uncomplete parent task based on subtask state
+    if (allDone && !task.completed) {
+        task.completed = true;
+        task.isFresh   = false;
+        if (type === 'daily') launchConfetti();
+    } else if (!allDone && task.completed) {
+        // Un-tick parent if user un-ticks a subtask from a completed task
+        task.completed = false;
+    }
+
+    save();
+
+    // Update DOM in-place — no full re-render to avoid animation jitter
+    // Progress bar
     const bar = document.querySelector(`#sub-${taskId} .sub-bar`);
     if (bar) bar.style.width = pct + '%';
 
-    // Update the specific checkbox
+    // This specific checkbox
     const checks = document.querySelectorAll(`#sub-${taskId} .sub-check`);
-    if (checks[idx]) {
-        checks[idx].classList.toggle('checked', task.subtasks[idx].done);
-    }
+    if (checks[idx]) checks[idx].classList.toggle('checked', task.subtasks[idx].done);
 
-    // Update subtask text strikethrough
+    // Subtask text decoration
     const texts = document.querySelectorAll(`#sub-${taskId} .sub-text`);
     if (texts[idx]) {
         texts[idx].style.textDecoration = task.subtasks[idx].done ? 'line-through' : '';
-        texts[idx].style.opacity = task.subtasks[idx].done ? '0.45' : '1';
+        texts[idx].style.opacity        = task.subtasks[idx].done ? '0.45' : '1';
     }
 
-    // If all done, also update the parent task card's check visually
-    if (pct === 100) {
-        const cardCheck = document.querySelector(`[data-id="${taskId}"] .task-check`);
-        if (cardCheck) {
-            cardCheck.classList.add('checked');
-        }
+    // Parent task-check and task-txt
+    const cardEl    = document.querySelector(`[data-id="${taskId}"]`);
+    const cardCheck = cardEl?.querySelector('.task-check');
+    const cardTxt   = cardEl?.querySelector('.task-txt');
+    if (cardCheck) cardCheck.classList.toggle('checked', task.completed);
+    if (cardTxt)   cardTxt.classList.toggle('done',      task.completed);
+
+    // All-tasks-done toast
+    if (type === 'daily' && task.completed) {
+        const totalTasks = state.todos.length;
+        const doneTasks  = state.todos.filter(t => t.completed).length;
+        if (totalTasks > 0 && doneTasks === totalTasks)
+            showToast('🎉 All done! Amazing work!', 'success');
     }
 }
 
