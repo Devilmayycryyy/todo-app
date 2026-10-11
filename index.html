@@ -651,6 +651,10 @@
             .modal-card { padding: 22px; border-radius: 22px; }
             .task-actions { opacity: 1; transform: translateX(0); }
         }
+    body.focus-active #recurSection { display: none !important; }
+        .recur-card.is-paused { opacity: .55; }
+        .recur-card .task-actions { opacity: 1; transform: none; }
+        #rcDays, #rcPri, #rcCat { flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -796,6 +800,15 @@
         </div>
     </div>
 
+    <!-- RECURRING ACTIVITIES -->
+    <div class="goal-column" id="recurSection">
+        <div class="section-title">
+            <span style="color:var(--accent2)">🔁 Recurring Activities <span class="section-count" id="recurCount"></span></span>
+            <div class="add-icon-btn" onclick="openRecurModal()">＋</div>
+        </div>
+        <div class="task-list" id="recurList"></div>
+    </div>
+
     <!-- WEEKLY + MONTHLY GOALS -->
     <div class="goals-wrapper">
         <div class="goal-column">
@@ -912,13 +925,14 @@
         <span class="modal-label">Category</span>
         <div class="chips-row" id="editCategoryChips"></div>
 
-        <span class="modal-label">Recurring</span>
+        <div id="editRecurWrap"><span class="modal-label">Repeat (also listed under Recurring Activities)</span>
         <div class="recur-grid" id="editRecurring">
             <button class="recur-btn" data-val="none" onclick="setEditRecur('none',this)">None</button>
             <button class="recur-btn" data-val="daily" onclick="setEditRecur('daily',this)">Daily 🔁</button>
             <button class="recur-btn" data-val="weekly" onclick="setEditRecur('weekly',this)">Weekly 🔁</button>
             <button class="recur-btn" data-val="weekdays" onclick="setEditRecur('weekdays',this)">Weekdays 🔁</button>
-        </div>
+            <button class="recur-btn" data-val="monthly" onclick="setEditRecur('monthly',this)">Monthly 🔁</button>
+        </div></div>
 
         <div class="modal-btns">
             <button class="btn-base btn-cancel" onclick="closeModal('editTaskModal')">Cancel</button>
@@ -953,6 +967,35 @@
         <div class="modal-btns">
             <button class="btn-base btn-cancel" onclick="closeModal('addGoalModal')">Cancel</button>
             <button class="btn-base btn-confirm" id="btnSaveGoal">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- RECURRING MODAL -->
+<div class="modal-overlay" id="recurModal">
+    <div class="modal-card" style="max-height:88vh;overflow-y:auto;">
+        <div class="modal-title" id="recurModalTitle">🔁 New Recurring Activity</div>
+        <span class="modal-label">Title</span>
+        <input type="text" class="modal-input" id="rcTitle" placeholder="e.g. Solve 20 JEE problems">
+        <span class="modal-label">Repeat</span>
+        <div class="recur-grid" id="rcFreq">
+            <button class="recur-btn" data-val="daily" onclick="rc.freq='daily';renderRecurModal()">Daily</button>
+            <button class="recur-btn" data-val="weekdays" onclick="rc.freq='weekdays';renderRecurModal()">Weekdays</button>
+            <button class="recur-btn" data-val="weekly" onclick="rc.freq='weekly';renderRecurModal()">Weekly</button>
+            <button class="recur-btn" data-val="monthly" onclick="rc.freq='monthly';renderRecurModal()">Monthly</button>
+        </div>
+        <div id="rcWeekWrap" style="display:none"><span class="modal-label">On days</span><div class="chips-row" id="rcDays"></div></div>
+        <div id="rcMonthWrap" style="display:none"><span class="modal-label">Day of month (31 = last day in shorter months)</span>
+            <input type="number" min="1" max="31" class="modal-input" id="rcMonthDay"></div>
+        <span class="modal-label">Priority</span><div class="chips-row" id="rcPri"></div>
+        <span class="modal-label">Category</span><div class="chips-row" id="rcCat"></div>
+        <span class="modal-label">Subtasks (one per line — added to every new copy)</span>
+        <textarea class="modal-textarea" id="rcSubs" placeholder="Step 1&#10;Step 2"></textarea>
+        <span class="modal-label">Notes</span>
+        <textarea class="modal-textarea" id="rcNotes" style="min-height:56px"></textarea>
+        <div class="modal-btns">
+            <button class="btn-base btn-cancel" onclick="closeModal('recurModal')">Cancel</button>
+            <button class="btn-base btn-confirm" onclick="saveRecur()">Save</button>
         </div>
     </div>
 </div>
@@ -1049,27 +1092,7 @@ function init() {
         }
     }
 
-    // Migrations & defaults
-    const ensureSubs = l => l.forEach(t => {
-        if (!t.subtasks) t.subtasks = [];
-        if (!t.notes) t.notes = '';
-        if (!t.recurring) t.recurring = 'none';
-        if (!t.dueDate) t.dueDate = '';
-    });
-    if (state.todos) ensureSubs(state.todos);
-    if (state.goals?.weekly) ensureSubs(state.goals.weekly);
-    if (state.goals?.monthly) ensureSubs(state.goals.monthly);
-    if (!state.categories?.length) state.categories = ['Personal', 'Work', 'Health', 'Study'];
-    if (!state.goals) state.goals = { weekly: [], monthly: [] };
-    if (!state.archives) state.archives = {};
-    if (!state.activeFilter) state.activeFilter = 'All';
-    if (!state.updatedAt) state.updatedAt = Date.now();
-    if (!state.config) state.config = { lastPriority: 'low', lastCategory: 'Personal' };
-    if (state.streak === undefined) state.streak = 0;
-    if (!state.lastPerfectDay) state.lastPerfectDay = null;
-
-    // Migrate old saves that don't have deletedIds yet
-    if (!state.deletedIds) state.deletedIds = {};
+    normalizeState();
 
     // Prune tombstones older than 30 days to prevent unbounded growth
     const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
@@ -1115,6 +1138,7 @@ function init() {
     // Rollover check
     checkDayRollover();
     renderAll();
+    showRolloverModal(); // pending rollover survives reloads now
 
     // Notification state
     if ("Notification" in window && Notification.permission === "granted")
@@ -1135,6 +1159,12 @@ function init() {
 
     // Keyboard
     document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            document.body.classList.remove('focus-active'); document.querySelector('.focus-fab').textContent = '🎯';
+            document.querySelectorAll('.modal-overlay.active').forEach(m => { if (m.id !== 'rolloverModal') closeModal(m.id); });
+            if (document.activeElement) document.activeElement.blur();
+            return;
+        }
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if (e.key.toLowerCase() === 'n') { e.preventDefault(); document.getElementById('quick_add_input').focus(); }
         if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFocusMode(); }
@@ -1159,114 +1189,15 @@ function init() {
         }
     });
 
+    setInterval(checkDayRollover, 60000); // catches midnight while the tab stays open
     // Check overdue tasks
     renderMissedCarrySection();
 }
 
 // ═══════════════════════ DAY ROLLOVER ═══════════════════════
-function checkDayRollover() {
-    const todayKey = new Date().toLocaleDateString('en-CA');
-    if (!state.lastLoginDate) {
-        state.lastLoginDate = todayKey;
-        generateRecurringTasks();
-        save();
-        return;
-    }
-    if (state.lastLoginDate === todayKey) {
-        // Same day — ensure recurring tasks exist (handles app reopen same day)
-        generateRecurringTasks();
-        return;
-    }
 
-    // A new day has begun!
-    const previousDate  = state.lastLoginDate;
-    const previousTasks = state.todos;
 
-    // Separate completed vs genuinely incomplete non-recurring tasks
-    const completed  = previousTasks.filter(t => t.completed);
-    const incomplete = previousTasks.filter(t =>
-        !t.completed &&
-        !t.recurringSourceId  // recurring copies re-generate; don't carry them
-    );
 
-    // Capture recurring master tasks from the daily list BEFORE wiping it
-    // (generateRecurringTasks needs these to spawn today's copies)
-    const recurringMasters = previousTasks.filter(t =>
-        t.recurring && t.recurring !== 'none' && !t.recurringSourceId
-    );
-
-    // Archive completed tasks under yesterday's date
-    if (!state.archives[previousDate])
-        state.archives[previousDate] = { completed: [], missed: [], transferred: [], dismissed: [] };
-    if (completed.length > 0)
-        state.archives[previousDate].completed = completed;
-
-    // Update streak
-    updateStreak(previousDate, completed.length, previousTasks.length);
-
-    // Clear old day's list, then seed today's recurring tasks
-    state.todos = [];
-    generateRecurringTasks(recurringMasters);
-
-    if (incomplete.length > 0) {
-        pendingRolloverTasks = incomplete;
-
-        // PRE-TOMBSTONE all original IDs RIGHT NOW before any cloud sync fires.
-        // This is the definitive fix for duplication:
-        //   - If user picks Transfer  → new copies get new IDs (not tombstoned) ✓
-        //   - If user picks Archive   → tombstones stay, originals blocked ✓
-        //   - If cloud sync fires while modal is open → originals blocked by tombstone ✓
-        if (!state.deletedIds) state.deletedIds = {};
-        incomplete.forEach(t => { state.deletedIds[t.id] = Date.now(); });
-
-        document.getElementById('rolloverCount').innerText = incomplete.length;
-
-        const pd = new Date(previousDate + 'T00:00:00');
-        document.getElementById('rolloverDateLabel').innerText =
-            pd.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
-
-        const preview = document.getElementById('rolloverTaskPreview');
-        preview.innerHTML = '';
-        incomplete.slice(0, 5).forEach(t => {
-            const colors = { high: 'var(--danger)', med: 'var(--warning)', low: 'var(--success)' };
-            preview.innerHTML += `
-                <div class="rollover-task-item">
-                    <div class="p-indicator" style="background:${colors[t.priority] || 'var(--text-secondary)'}"></div>
-                    <span style="font-size:0.88rem;font-weight:600;flex:1">${escapeHtml(t.text)}</span>
-                    <span style="font-size:0.7rem;color:var(--text-secondary)">${t.category || ''}</span>
-                </div>`;
-        });
-        if (incomplete.length > 5)
-            preview.innerHTML += `<div style="text-align:center;font-size:0.78rem;color:var(--text-secondary);padding:6px">+${incomplete.length - 5} more...</div>`;
-
-        openModal('rolloverModal');
-    }
-
-    state.lastLoginDate = todayKey;
-    save();
-    renderAll();
-}
-
-function updateStreak(dateKey, completedCount, totalCount) {
-    if (totalCount === 0) return; // Don't break streak if no tasks
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yKey = yesterday.toLocaleDateString('en-CA');
-
-    if (completedCount === totalCount && totalCount > 0) {
-        // Perfect day!
-        if (state.lastPerfectDay === null || isConsecutiveDay(state.lastPerfectDay, dateKey)) {
-            state.streak = (state.streak || 0) + 1;
-        } else {
-            state.streak = 1; // Restart streak
-        }
-        state.lastPerfectDay = dateKey;
-    } else {
-        // Didn't complete all — check if streak breaks
-        if (state.lastPerfectDay && !isConsecutiveDay(state.lastPerfectDay, dateKey)) {
-            state.streak = 0;
-        }
-    }
-}
 
 function isConsecutiveDay(prevKey, currKey) {
     const prev = new Date(prevKey + 'T00:00:00');
@@ -1276,119 +1207,9 @@ function isConsecutiveDay(prevKey, currKey) {
 }
 
 // ── HANDLE ROLLOVER ──
-function handleRollover(action) {
-    const previousDate = (() => {
-        const d = new Date(); d.setDate(d.getDate() - 1);
-        return d.toLocaleDateString('en-CA');
-    })();
 
-    if (!state.archives[previousDate]) state.archives[previousDate] = { completed: [], missed: [], transferred: [] };
 
-    // KEY FIX: Always mark incomplete tasks as MISSED in the previous day's archive
-    state.archives[previousDate].missed = [...pendingRolloverTasks];
 
-    if (action === 'transfer') {
-        // Create new copies with new IDs (originals already tombstoned in checkDayRollover)
-        const transferred = pendingRolloverTasks.map((t, i) => ({
-            ...t,
-            id: Date.now() + i,
-            timestamp: new Date().toISOString(),
-            completed: false,
-            isTransferred: true,
-            transferredFrom: previousDate,
-            subtasks: (t.subtasks || []).map(s => ({ ...s, done: false }))
-        }));
-
-        // Record in archive
-        state.archives[previousDate].transferred = [...pendingRolloverTasks];
-
-        state.todos = [...transferred, ...state.todos];
-        sortTasks(state.todos);
-        showToast(`📅 ${pendingRolloverTasks.length} task(s) transferred`, 'warning');
-    } else {
-        // Archive as missed — auto-dismiss from missed section
-        if (!state.archives[previousDate].dismissed) state.archives[previousDate].dismissed = [];
-        if (!state.deletedIds) state.deletedIds = {};
-
-        pendingRolloverTasks.forEach(t => {
-            // Dismiss from missed section UI
-            if (!state.archives[previousDate].dismissed.includes(String(t.id)))
-                state.archives[previousDate].dismissed.push(String(t.id));
-            // Tombstone the original ID so cloud sync can NEVER resurrect it into today's list
-            state.deletedIds[t.id] = Date.now();
-        });
-        showToast('📁 Tasks archived as Missed', 'error');
-    }
-
-    pendingRolloverTasks = [];
-    closeModal('rolloverModal');
-    save();
-    renderAll();
-}
-
-// ── RECURRING TASKS ──
-// extraMasters: optional array of recurring task objects to include
-// (used on rollover to carry over master tasks before todos is wiped)
-function generateRecurringTasks(extraMasters = []) {
-    const todayKey  = new Date().toLocaleDateString('en-CA');
-    const dayOfWeek = new Date().getDay();
-    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-
-    // Collect ALL recurring master tasks:
-    //  - goals lists
-    //  - current daily todos that have a recurring schedule (same-day reopen)
-    //  - extraMasters passed in from rollover (yesterday's recurring masters)
-    const seen = new Set();
-    const allRecurring = [
-        ...(state.goals.weekly  || []),
-        ...(state.goals.monthly || []),
-        ...(state.todos || []).filter(t => t.recurring && t.recurring !== 'none' && !t.recurringSourceId),
-        ...extraMasters
-    ].filter(t => {
-        // Deduplicate masters by ID so we don't spawn two copies
-        if (seen.has(t.id)) return false;
-        seen.add(t.id);
-        return true;
-    });
-
-    allRecurring.forEach((t, i) => {
-        if (!t.recurring || t.recurring === 'none') return;
-
-        // Don't add if a copy already exists for today
-        const alreadyAdded = state.todos.some(d =>
-            d.recurringDate === todayKey && (
-                (d.recurringSourceId && d.recurringSourceId === t.id) ||
-                (!d.recurringSourceId && d.recurringTextKey === t.text)
-            )
-        );
-        if (alreadyAdded) return;
-
-        const shouldAdd =
-            t.recurring === 'daily' ||
-            (t.recurring === 'weekdays' && isWeekday) ||
-            (t.recurring === 'weekly'   && dayOfWeek === new Date(t.timestamp || Date.now()).getDay());
-
-        if (!shouldAdd) return;
-
-        state.todos.push({
-            id: Date.now() + Math.floor(Math.random() * 100000) + i,
-            text: t.text,
-            priority: t.priority,
-            category: t.category,
-            notes: t.notes || '',
-            subtasks: [],
-            completed: false,
-            timestamp: new Date().toISOString(),
-            isTransferred: false,
-            isFresh: true,
-            recurringSourceId: t.id || null,
-            recurringTextKey: t.text,
-            recurringDate: todayKey,
-            dueDate: '',
-            recurring: 'none'
-        });
-    });
-}
 
 // ═══════════════════════ RENDER ═══════════════════════
 function renderAll() {
@@ -1400,12 +1221,13 @@ function renderAll() {
     renderGraph();
     renderStreak();
     renderMissedCarrySection();
-    renderMatrix(); // keep matrix in sync
+    renderRecurring();
+    renderMatrix();
 }
 
 function renderStreak() {
     const el = document.getElementById('streakDisplay');
-    if (state.streak && state.streak > 0) {
+    if (state.streak > 0 && state.lastPerfectDay >= dkey(new Date(Date.now() - 864e5))) {
         el.style.display = 'inline-flex';
         el.className = 'streak-badge';
         el.innerHTML = `🔥 ${state.streak}-day streak`;
@@ -1612,14 +1434,14 @@ function createTaskCard(task, type) {
     }
 
     // Badges
-    let badges = `<span class="meta-tag">${task.category || 'General'}</span>`;
+    let badges = `<span class="meta-tag">${escapeHtml(task.category || 'General')}</span>`;
     if (task.priority === 'high') badges += `<span class="meta-tag" style="color:var(--danger);border-color:rgba(239,68,68,0.3)">🔴 High</span>`;
     if (task.priority === 'med')  badges += `<span class="meta-tag" style="color:var(--warning);border-color:rgba(245,158,11,0.3)">🟡 Med</span>`;
     if (task.isTransferred) badges += `<span class="meta-tag badge-transferred">📅 Transferred</span>`;
     else if (task.isFresh) badges += `<span class="meta-tag badge-fresh">✨ New</span>`;
     if (isOverdue) badges += `<span class="meta-tag badge-overdue">⚠ Overdue</span>`;
     else if (isDueToday) badges += `<span class="meta-tag badge-due-today">⏰ Due Today</span>`;
-    if (task.recurring && task.recurring !== 'none') badges += `<span class="meta-tag badge-recurring">🔁 ${task.recurring}</span>`;
+    if (task.recurringSourceId) badges += `<span class="meta-tag badge-recurring">🔁 Recurring</span>`;
 
     // Notes preview
     const notesHtml = task.notes ? `<div class="task-note-preview" title="${escapeHtml(task.notes)}">📝 ${escapeHtml(task.notes)}</div>` : '';
@@ -1945,7 +1767,7 @@ function openEditModal(id, type) {
 
     // Priority chips
     document.querySelectorAll('#editPriorityChips .chip').forEach(c => {
-        c.classList.toggle('active', c.textContent.toLowerCase() === (task.priority || 'low'));
+        c.classList.toggle('active', c.classList.contains('p-' + (task.priority || 'low')));
     });
 
     // Category chips
@@ -1960,9 +1782,9 @@ function openEditModal(id, type) {
     });
 
     // Recurring
-    document.querySelectorAll('#editRecurring .recur-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.val === (task.recurring || 'none'));
-    });
+    const tpl = state.recurring.find(r => r.id == task.recurringSourceId);
+    document.querySelectorAll('#editRecurring .recur-btn').forEach(b => b.classList.toggle('active', b.dataset.val === (tpl ? tpl.freq : 'none')));
+    $('editRecurWrap').style.display = type === 'daily' ? '' : 'none';
 
     openModal('editTaskModal');
 }
@@ -1996,8 +1818,20 @@ function saveTaskEdit() {
     const activeC = document.querySelector('#editCategoryChips .chip.active');
     if (activeC) task.category = activeC.textContent;
 
-    const activeR = document.querySelector('#editRecurring .recur-btn.active');
-    if (activeR) task.recurring = activeR.dataset.val;
+    if (type === 'daily') {   // recurring now lives in state.recurring (templates), not on the task
+        const sel = (document.querySelector('#editRecurring .recur-btn.active') || { dataset: { val: 'none' } }).dataset.val;
+        const k = dkey(new Date());
+        let tpl = state.recurring.find(r => r.id == task.recurringSourceId);
+        if (sel === 'none') {
+            if (tpl) { state.deletedIds[tpl.id] = Date.now(); state.recurring = state.recurring.filter(r => r !== tpl); }
+            delete task.recurringSourceId; delete task.recurringDate;
+        } else if (tpl) {
+            tpl.freq = sel; if (!tpl.weekDays.length) tpl.weekDays = [new Date().getDay()];
+        } else {
+            tpl = makeTemplate(task, sel); tpl.lastGenerated = k; state.recurring.push(tpl);   // copies subtasks too
+            task.recurringSourceId = tpl.id; task.recurringDate = k;
+        }
+    }
 
     sortTasks(state.todos);
     save();
@@ -2309,10 +2143,10 @@ function openCatManager() {
     state.categories.forEach(cat => {
         list.innerHTML += `
             <div class="cat-item-ui">
-                <span>${cat}</span>
+                <span>${escapeHtml(cat)}</span>
                 <div class="cat-actions">
-                    <span class="cat-icon-btn" onclick="promptEditCategory('${cat}')">✏️</span>
-                    <span class="cat-icon-btn" onclick="deleteCategory('${cat}')">🗑</span>
+                    <span class="cat-icon-btn" onclick="promptEditCategory(state.categories[${state.categories.indexOf(cat)}])">✏️</span>
+                    <span class="cat-icon-btn" onclick="deleteCategory(state.categories[${state.categories.indexOf(cat)}])">🗑</span>
                 </div>
             </div>`;
     });
@@ -2344,7 +2178,7 @@ function promptEditCategory(old) {
         const idx = state.categories.indexOf(old);
         if (idx !== -1) state.categories[idx] = newName;
         // Rename in tasks
-        [...state.todos, ...state.goals.weekly, ...state.goals.monthly].forEach(t => { if (t.category === old) t.category = newName; });
+        [...state.todos, ...state.goals.weekly, ...state.goals.monthly, ...state.recurring].forEach(t => { if (t.category === old) t.category = newName; });
         if (currentInput.category === old) currentInput.category = newName;
         save(); renderAll();
         closeModal('catInputModal'); openCatManager();
@@ -2679,7 +2513,7 @@ async function cloudDownload(isSilent) {
 
         // 2. Merge todos by ID – remote wins for same ID
         const todoMap = new Map();
-        [...(state.todos || []), ...(remote.todos || [])].forEach(t => todoMap.set(t.id, t));
+        (localTime >= remoteTime ? [...(remote.todos || []), ...(state.todos || [])] : [...(state.todos || []), ...(remote.todos || [])]).forEach(t => todoMap.set(t.id, t));
 
         // 3. Purge tombstoned tasks
         let mergedTodos = Array.from(todoMap.values()).filter(t => !mergedDeleted[t.id]);
@@ -2694,7 +2528,7 @@ async function cloudDownload(isSilent) {
             mergedTodos = mergedTodos.filter(t => {
                 if (!t.completed) return true;  // keep all incomplete tasks
                 // Keep completed tasks that were added today
-                const taskDate = (t.recurringDate || (t.timestamp ? t.timestamp.slice(0,10) : null));
+                const taskDate = (t.recurringDate || (t.timestamp ? new Date(t.timestamp).toLocaleDateString('en-CA') : null));
                 return taskDate === todayKey;    // drop completed tasks from prior days
             });
         }
@@ -2708,18 +2542,15 @@ async function cloudDownload(isSilent) {
         });
 
         // 6. Merge goals
-        const mergeG = (l, r) => {
-            const m = new Map();
-            [...(l||[]),...(r||[])].forEach(g => m.set(g.id, g));
-            return Array.from(m.values());
-        };
+        const mergeG = (l, r) => { const m = new Map(); (localTime >= remoteTime ? [...(r||[]), ...(l||[])] : [...(l||[]), ...(r||[])]).forEach(g => m.set(g.id, g)); return [...m.values()].filter(g => !mergedDeleted[g.id]); };
 
         // 7. Apply merged state
-        state.todos           = mergedTodos;
+        state.todos = dedupeRecurring(mergedTodos);
         state.deletedIds      = mergedDeleted;
         state.goals.weekly    = mergeG(state.goals.weekly,  remote.goals?.weekly);
         state.goals.monthly   = mergeG(state.goals.monthly, remote.goals?.monthly);
-        state.archives        = { ...(state.archives || {}), ...(remote.archives || {}) };
+        state.archives = mergeArchives(state.archives, remote.archives);
+        state.recurring = mergeRecurring(state.recurring, remote.recurring, mergedDeleted, localTime >= remoteTime);
         state.streak          = Math.max(state.streak || 0, remote.streak || 0);
         if ((remote.categories?.length || 0) > (state.categories?.length || 0)) {
             state.categories = remote.categories;
@@ -2735,6 +2566,7 @@ async function cloudDownload(isSilent) {
         const hadNewLocal  = localTime  > remoteTime;
         state.updatedAt = hadNewLocal ? localTime : (remoteTime || localTime);
 
+        generateRecurringTasks();
         // 10. Persist locally and re-render
         localStorage.setItem(STABLE_KEY, JSON.stringify(state));
         renderAll();
@@ -2771,7 +2603,7 @@ function handleFileLoad(input) {
     reader.onload = e => {
         try {
             const imported = JSON.parse(e.target.result);
-            state = imported;
+            state = imported; normalizeState();
             save(); renderAll();
             showToast('📤 Data restored!', 'success');
         } catch(err) { showToast('❌ Invalid file', 'error'); }
@@ -2818,6 +2650,254 @@ function launchConfetti() {
 // ═══════════════════════ UTILS ═══════════════════════
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════ RECURRING ACTIVITIES ═══════════════════════
+const $ = id => document.getElementById(id);
+const dkey = d => d.toLocaleDateString('en-CA');
+const DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let rc = {};   // recurring-modal draft
+
+function normalizeState() {
+    const D = { todos: [], archives: {}, categories: ['Personal','Work','Health','Study'], recurring: [], deletedIds: {},
+                activeFilter: 'All', streak: 0, lastPerfectDay: null, pendingRollover: null, config: { lastPriority: 'low', lastCategory: 'Personal' } };
+    Object.keys(D).forEach(k => { if (state[k] == null || (k === 'categories' && !state.categories.length)) state[k] = D[k]; });
+    state.goals = state.goals || {}; state.goals.weekly = state.goals.weekly || []; state.goals.monthly = state.goals.monthly || [];
+    if (!state.updatedAt) state.updatedAt = Date.now();
+    const lists = [state.todos, state.goals.weekly, state.goals.monthly];
+    lists.forEach(l => l.forEach(t => { t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.dueDate = t.dueDate || ''; t.recurring = t.recurring || 'none'; }));
+    state.recurring.forEach(r => { r.subtasks = r.subtasks || []; r.weekDays = r.weekDays || [1]; r.monthDay = r.monthDay || 1; });
+    // legacy: tasks flagged recurring become templates (one-time migration)
+    lists.forEach((l, li) => l.forEach(t => {
+        if (t.recurring !== 'none' && !t.recurringSourceId) {
+            const tpl = makeTemplate(t, t.recurring, t.timestamp ? new Date(t.timestamp) : new Date());
+            if (li === 0) tpl.lastGenerated = dkey(new Date());
+            if (!state.recurring.some(r => r.text === t.text && r.freq === tpl.freq)) state.recurring.push(tpl);
+            t.recurring = 'none';
+        }
+    }));
+}
+
+function makeTemplate(t, freq, d = new Date()) {
+    return { id: Date.now() + Math.floor(Math.random() * 1e4), text: t.text, priority: t.priority || 'low', category: t.category || 'Personal',
+             notes: t.notes || '', subtasks: (t.subtasks || []).map(s => s.text), freq, weekDays: [d.getDay()], monthDay: d.getDate(),
+             paused: false, lastGenerated: null };
+}
+
+function isDueOn(r, d) {
+    if (r.paused) return false;
+    const dow = d.getDay();
+    if (r.freq === 'daily') return true;
+    if (r.freq === 'weekdays') return dow >= 1 && dow <= 5;
+    if (r.freq === 'weekly') return (r.weekDays || []).includes(dow);
+    if (r.freq === 'monthly') return d.getDate() === Math.min(r.monthDay || 1, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate());
+    return false;
+}
+
+function nextDue(r) {
+    for (let i = r.lastGenerated === dkey(new Date()) ? 1 : 0; i <= 62; i++) {
+        const d = new Date(); d.setDate(d.getDate() + i);
+        if (isDueOn(r, d)) return { d, today: i === 0 };
+    }
+    return null;
+}
+
+function recurLabel(r) {
+    if (r.freq === 'daily') return 'Every day';
+    if (r.freq === 'weekdays') return 'Weekdays';
+    if (r.freq === 'weekly') return 'Weekly · ' + [...r.weekDays].sort().map(i => DN[i]).join(', ');
+    return 'Monthly · day ' + r.monthDay;
+}
+
+function spawnInstance(r) {
+    const k = dkey(new Date());
+    r.lastGenerated = k;
+    const t = { id: Date.now() + Math.floor(Math.random() * 1e5), text: r.text, priority: r.priority, category: r.category, notes: r.notes || '',
+                subtasks: (r.subtasks || []).map(x => ({ text: x, done: false })), completed: false, timestamp: new Date().toISOString(),
+                isTransferred: false, isFresh: true, recurringSourceId: r.id, recurringDate: k, dueDate: '', recurring: 'none' };
+    state.todos.push(t);
+    return t;
+}
+
+// Adds today's copy of every template that is due — at most once per template per day (r.lastGenerated)
+function generateRecurringTasks() {
+    const today = new Date(), k = dkey(today); let added = 0;
+    state.recurring.forEach(r => {
+        if (r.lastGenerated === k || !isDueOn(r, today)) return;
+        if (state.todos.some(t => t.recurringSourceId == r.id && t.recurringDate === k)) { r.lastGenerated = k; return; }
+        spawnInstance(r); added++;
+    });
+    if (added) { sortTasks(state.todos); save(); renderAll(); }
+}
+
+// Two devices can both spawn today's copy → keep one per (template, date), prefer the completed one
+function dedupeRecurring(list) {
+    const idx = new Map(), out = [];
+    list.forEach(t => {
+        if (!t.recurringSourceId) { out.push(t); return; }
+        const key = t.recurringSourceId + '|' + t.recurringDate, i = idx.get(key);
+        if (i === undefined) { idx.set(key, out.length); out.push(t); } else if (t.completed && !out[i].completed) out[i] = t;
+    });
+    return out;
+}
+
+function mergeArchives(a = {}, b = {}) {
+    const out = {};
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => {
+        const x = a[k] || {}, y = b[k] || {}, o = {};
+        ['completed', 'missed', 'transferred'].forEach(f => { const m = new Map(); [...(x[f] || []), ...(y[f] || [])].forEach(t => m.set(t.id, t)); o[f] = [...m.values()]; });
+        o.dismissed = [...new Set([...(x.dismissed || []), ...(y.dismissed || [])])];
+        out[k] = o;
+    });
+    return out;
+}
+
+function mergeRecurring(l = [], r = [], dead, preferLocal) {
+    const m = new Map();
+    (preferLocal ? [...r, ...l] : [...l, ...r]).forEach(x => {
+        const o = m.get(x.id);
+        m.set(x.id, { ...x, lastGenerated: [o && o.lastGenerated, x.lastGenerated].filter(Boolean).sort().pop() || null });
+    });
+    return [...m.values()].filter(x => !dead[x.id]);
+}
+
+function renderRecurring() {
+    const el = $('recurList'), L = state.recurring;
+    $('recurCount').innerText = L.length ? `(${L.filter(r => !r.paused).length} active)` : '';
+    if (!L.length) { el.innerHTML = '<div class="empty-state"><span class="emoji">🔁</span>No recurring activities — add one with ＋</div>'; return; }
+    el.innerHTML = L.map(r => {
+        const n = nextDue(r);
+        const nl = r.paused ? '' : n ? (n.today ? 'Due today' : 'Next: ' + n.d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) : '';
+        return `<div class="task-card recur-card ${r.paused ? 'is-paused' : ''}" data-priority="${r.priority}">
+            <div class="task-main-row"><div class="task-body">
+                <div class="task-txt">${escapeHtml(r.text)}</div>
+                <div class="task-meta"><span class="meta-tag badge-recurring">🔁 ${recurLabel(r)}</span><span class="meta-tag">${escapeHtml(r.category)}</span>${r.subtasks.length ? `<span class="meta-tag">☑ ${r.subtasks.length} subtasks</span>` : ''}${r.paused ? '<span class="meta-tag">⏸ Paused</span>' : ''}</div>
+                ${nl ? `<div class="due-date-line">📅 ${nl}</div>` : ''}
+            </div><div class="task-actions">
+                <div class="action-icon" onclick="addRecurNow(${r.id})" title="Add to today now">➕</div>
+                <div class="action-icon" onclick="toggleRecurPause(${r.id})" title="${r.paused ? 'Resume' : 'Pause'}">${r.paused ? '▶' : '⏸'}</div>
+                <div class="action-icon" onclick="openRecurModal(${r.id})" title="Edit">✏️</div>
+                <div class="action-icon del" onclick="deleteRecur(${r.id})" title="Delete">🗑</div>
+            </div></div></div>`;
+    }).join('');
+}
+
+function openRecurModal(id) {
+    const r = id ? state.recurring.find(x => x.id == id) : null;
+    rc = { id: r ? r.id : null, freq: r ? r.freq : 'daily', days: r ? [...r.weekDays] : [new Date().getDay()],
+           pri: r ? r.priority : currentInput.priority, cat: r ? r.category : currentInput.category };
+    $('recurModalTitle').innerText = r ? '✏️ Edit Recurring Activity' : '🔁 New Recurring Activity';
+    $('rcTitle').value = r ? r.text : ''; $('rcSubs').value = r ? r.subtasks.join('\n') : ''; $('rcNotes').value = r ? (r.notes || '') : '';
+    $('rcMonthDay').value = r ? r.monthDay : new Date().getDate();
+    renderRecurModal(); openModal('recurModal');
+    setTimeout(() => $('rcTitle').focus(), 300);
+}
+
+function renderRecurModal() {
+    document.querySelectorAll('#rcFreq .recur-btn').forEach(b => b.classList.toggle('active', b.dataset.val === rc.freq));
+    $('rcWeekWrap').style.display = rc.freq === 'weekly' ? 'block' : 'none';
+    $('rcMonthWrap').style.display = rc.freq === 'monthly' ? 'block' : 'none';
+    $('rcDays').innerHTML = DN.map((n, i) => `<div class="chip ${rc.days.includes(i) ? 'active' : ''}" onclick="rc.days = rc.days.includes(${i}) ? rc.days.filter(x => x !== ${i}) : [...rc.days, ${i}]; renderRecurModal()">${n}</div>`).join('');
+    $('rcPri').innerHTML = [['low', 'Low'], ['med', 'Medium'], ['high', 'High']].map(([v, l]) => `<div class="chip p-${v} ${rc.pri === v ? 'active' : ''}" onclick="rc.pri='${v}';renderRecurModal()">${l}</div>`).join('');
+    $('rcCat').innerHTML = state.categories.map((c, i) => `<div class="chip ${rc.cat === c ? 'active' : ''}" onclick="rc.cat=state.categories[${i}];renderRecurModal()">${escapeHtml(c)}</div>`).join('');
+}
+
+function saveRecur() {
+    const text = $('rcTitle').value.trim();
+    if (!text) { showToast('Enter a title', 'error'); return; }
+    if (rc.freq === 'weekly' && !rc.days.length) { showToast('Pick at least one day', 'error'); return; }
+    const data = { text, freq: rc.freq, weekDays: [...rc.days].sort(), monthDay: Math.min(31, Math.max(1, parseInt($('rcMonthDay').value) || 1)),
+                   priority: rc.pri, category: rc.cat, notes: $('rcNotes').value.trim(),
+                   subtasks: $('rcSubs').value.split('\n').map(x => x.trim()).filter(Boolean) };
+    if (rc.id) Object.assign(state.recurring.find(x => x.id == rc.id), data);
+    else state.recurring.push({ id: Date.now(), paused: false, lastGenerated: null, ...data });
+    closeModal('recurModal');
+    generateRecurringTasks(); save(); renderAll();   // adds today's copy immediately if it is due today
+    showToast('🔁 Recurring activity saved', 'success');
+}
+
+function deleteRecur(id) {
+    $('confirmText').innerText = "Delete this recurring activity? No new copies will be created (today's task stays).";
+    $('confirmActionBtn').onclick = () => {
+        state.deletedIds[id] = Date.now(); state.recurring = state.recurring.filter(r => r.id != id);
+        save(); renderAll(); closeModal('confirmModal');
+    };
+    openModal('confirmModal');
+}
+
+function toggleRecurPause(id) {
+    const r = state.recurring.find(x => x.id == id); if (!r) return;
+    r.paused = !r.paused; save(); renderAll(); if (!r.paused) generateRecurringTasks();
+}
+
+function addRecurNow(id) {
+    const r = state.recurring.find(x => x.id == id); if (!r) return;
+    if (state.todos.some(t => t.recurringSourceId == r.id && t.recurringDate === dkey(new Date()))) { showToast("Already in today's list"); return; }
+    spawnInstance(r); sortTasks(state.todos); save(); renderAll(); showToast('➕ Added to today', 'success');
+}
+
+// ═══════════════════════ DAY ROLLOVER (rewritten) ═══════════════════════
+function checkDayRollover() {
+    const todayKey = dkey(new Date());
+    if (!state.lastLoginDate) { state.lastLoginDate = todayKey; generateRecurringTasks(); save(); return; }
+    if (state.lastLoginDate === todayKey) { generateRecurringTasks(); return; }
+
+    const prev = state.lastLoginDate, tasks = state.todos;
+    const completed = tasks.filter(t => t.completed), open = tasks.filter(t => !t.completed);
+    const carry = open.filter(t => !t.recurringSourceId);        // user decides: transfer / archive
+    const recurMissed = open.filter(t => t.recurringSourceId);   // fresh copy is generated today → just log as missed
+    if (state.pendingRollover) resolveRollover('archive', true); // never lose an unanswered earlier prompt
+
+    const a = state.archives[prev] = state.archives[prev] || { completed: [], missed: [], transferred: [], dismissed: [] };
+    a.completed = completed;
+    a.missed = [...(a.missed || []), ...recurMissed];
+    a.dismissed = [...(a.dismissed || []), ...recurMissed.map(t => String(t.id))];
+    updateStreak(prev, completed.length, tasks.length);
+
+    tasks.forEach(t => { state.deletedIds[t.id] = Date.now(); }); // tombstone: sync can't resurrect yesterday's tasks
+    state.todos = [];
+    state.lastLoginDate = todayKey;
+    if (carry.length) state.pendingRollover = { date: prev, tasks: carry };   // persisted → survives closing the tab
+    generateRecurringTasks();
+    save(); renderAll(); showRolloverModal();
+}
+
+function showRolloverModal() {
+    const p = state.pendingRollover; if (!p || !p.tasks.length) return;
+    $('rolloverCount').innerText = p.tasks.length;
+    $('rolloverDateLabel').innerText = new Date(p.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const col = { high: 'var(--danger)', med: 'var(--warning)', low: 'var(--success)' };
+    $('rolloverTaskPreview').innerHTML = p.tasks.slice(0, 5).map(t => `<div class="rollover-task-item"><div class="p-indicator" style="background:${col[t.priority] || 'var(--text-secondary)'}"></div><span style="font-size:0.88rem;font-weight:600;flex:1">${escapeHtml(t.text)}</span><span style="font-size:0.7rem;color:var(--text-secondary)">${escapeHtml(t.category || '')}</span></div>`).join('')
+        + (p.tasks.length > 5 ? `<div style="text-align:center;font-size:0.78rem;color:var(--text-secondary);padding:6px">+${p.tasks.length - 5} more...</div>` : '');
+    openModal('rolloverModal');
+}
+
+function resolveRollover(action, silent) {
+    const p = state.pendingRollover; if (!p) return;
+    const a = state.archives[p.date] = state.archives[p.date] || { completed: [], missed: [], transferred: [], dismissed: [] };
+    a.transferred = a.transferred || []; a.dismissed = a.dismissed || [];
+    a.missed = [...(a.missed || []), ...p.tasks];                // always logged as MISSED on the day it happened (uses the real date, not "yesterday")
+    if (action === 'transfer') {
+        const now = Date.now();
+        state.todos = [...p.tasks.map((t, i) => ({ ...t, id: now + i, timestamp: new Date().toISOString(), completed: false, isTransferred: true,
+                       transferredFrom: p.date, subtasks: (t.subtasks || []).map(s => ({ ...s, done: false })) })), ...state.todos];
+        a.transferred.push(...p.tasks); sortTasks(state.todos);
+        if (!silent) showToast(`📅 ${p.tasks.length} task(s) transferred`, 'warning');
+    } else {
+        p.tasks.forEach(t => a.dismissed.push(String(t.id)));
+        if (!silent) showToast('📁 Tasks archived as Missed', 'error');
+    }
+    state.pendingRollover = null;
+    if (!silent) { closeModal('rolloverModal'); save(); renderAll(); }
+}
+function handleRollover(action) { resolveRollover(action, false); }
+
+function updateStreak(dateKey, done, total) {
+    if (!total) return;                       // empty day doesn't touch the streak
+    if (done === total) {
+        state.streak = (state.lastPerfectDay && isConsecutiveDay(state.lastPerfectDay, dateKey)) ? (state.streak || 0) + 1 : 1;
+        state.lastPerfectDay = dateKey;
+    } else state.streak = 0;                  // any imperfect day with tasks breaks it
 }
 
 // ── START ──
